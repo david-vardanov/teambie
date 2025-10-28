@@ -1,0 +1,62 @@
+<% layout('layouts/boilerplate') %>
+
+<div class="page-header">
+    <h1>All Events</h1>
+    <div>
+        <a href="/events/new" class="btn btn-primary">Add Event</a>
+        <a href="/events/calendar" class="btn btn-secondary">View Calendar</a>
+    </div>
+</div>
+
+<% if (events.length > 0) { %>
+    <div class="card">
+        <div class="card-body">
+            <div class="events-list">
+                <% events.forEach(event => { %>
+                    <div class="event-row">
+                        <span class="badge badge-<%= event.type.toLowerCase().replace(/_/g, '-') %>">
+                            <%= event.type.replace(/_/g, ' ') %>
+                        </span>
+
+                        <% if (event.employee) { %>
+                            <strong><a href="/employees/<%= event.employee.id %>"><%= event.employee.name %></a></strong>
+                        <% } else { %>
+                            <strong>Global Holiday</strong>
+                        <% } %>
+
+                        <span><%= event.startDate.toDateString() %></span>
+                        <% if (event.endDate) { %>
+                            <span>to <%= event.endDate.toDateString() %></span>
+                        <% } %>
+
+                        <% if (event.notes) { %>
+                            <span class="text-muted"><%= event.notes %></span>
+                        <% } %>
+
+                        <% if (event.createdBy) { %>
+                            <small class="text-muted">by <%= event.createdBy.name %></small>
+                        <% } %>
+
+                        <% if (!event.moderated) { %>
+                            <span class="badge" style="background-color: #f39c12;">Pending</span>
+                        <% } %>
+
+                        <div class="card-actions" style="margin-top: 0; margin-left: auto;">
+                            <a href="/events/<%= event.id %>" class="btn btn-sm btn-secondary">View</a>
+                            <a href="/events/<%= event.id %>/edit" class="btn btn-sm btn-primary">Edit</a>
+                            <form action="/events/<%= event.id %>?_method=DELETE" method="POST" style="display: inline;">
+                                <button type="submit" class="btn btn-sm btn-danger" onclick="return confirm('Delete this event?')">Delete</button>
+                            </form>
+                        </div>
+                    </div>
+                <% }) %>
+            </div>
+        </div>
+    </div>
+<% } else { %>
+    <div class="card">
+        <div class="card-body">
+            <p class="empty-state">No events found</p>
+        </div>
+    </div>
+<% } %>

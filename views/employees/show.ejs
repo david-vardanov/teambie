@@ -1,0 +1,66 @@
+<% layout('layouts/boilerplate') %>
+
+<div class="page-header">
+    <h1><%= employee.name %></h1>
+    <a href="/employees/<%= employee.id %>/edit" class="btn btn-primary">Edit</a>
+</div>
+
+<div class="card">
+    <div class="card-body">
+        <p><strong>Email:</strong> <%= employee.email %></p>
+        <p><strong>Start Date:</strong> <%= employee.startDate.toDateString() %></p>
+        <p><strong>Vacation Days Per Year:</strong> <%= employee.vacationDaysPerYear %></p>
+    </div>
+</div>
+
+<div class="vacation-stats card">
+    <div class="card-body">
+        <h2>Vacation Summary (<%= new Date().getFullYear() %>)</h2>
+        <div class="stats-grid">
+            <div class="stat">
+                <div class="stat-label">Days Taken</div>
+                <div class="stat-value"><%= vacationDaysTaken %></div>
+            </div>
+            <div class="stat">
+                <div class="stat-label">Days Remaining</div>
+                <div class="stat-value"><%= vacationDaysLeft %></div>
+            </div>
+            <div class="stat">
+                <div class="stat-label">Total Allowance</div>
+                <div class="stat-value"><%= employee.vacationDaysPerYear %></div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="events-section">
+    <h2>All Events</h2>
+    <% if (employee.events.length > 0) { %>
+        <div class="events-list">
+            <% employee.events.forEach(event => { %>
+                <div class="event-row">
+                    <span class="badge badge-<%= event.type.toLowerCase().replace(/_/g, '-') %>"><%= event.type.replace(/_/g, ' ') %></span>
+                    <span><%= event.startDate.toDateString() %></span>
+                    <% if (event.endDate) { %>
+                        <span>to <%= event.endDate.toDateString() %></span>
+                    <% } %>
+                    <% if (event.notes) { %>
+                        <span><%= event.notes %></span>
+                    <% } %>
+                    <a href="/events/<%= event.id %>" class="btn btn-sm btn-secondary">View</a>
+                </div>
+            <% }) %>
+        </div>
+    <% } else { %>
+        <p class="empty-state">No events recorded</p>
+    <% } %>
+</div>
+
+<div class="form-actions" style="margin-top: 20px;">
+    <a href="/employees" class="btn btn-secondary">Back to Employees</a>
+    <% if (isAdmin && !employee.archived) { %>
+        <form action="/employees/<%= employee.id %>/archive" method="POST" style="display: inline;">
+            <button type="submit" class="btn btn-danger" onclick="return confirm('Archive this employee? They will be moved to the archived list.')">Archive Employee</button>
+        </form>
+    <% } %>
+</div>

@@ -1,0 +1,31 @@
+{
+  "name": "team-management",
+  "version": "1.0.0",
+  "description": "Team management tool for tracking vacations, sick days, and other employee events",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "nodemon server.js",
+    "seed": "node prisma/seed.js"
+  },
+  "prisma": {
+    "seed": "node prisma/seed.js"
+  },
+  "keywords": ["team", "management", "calendar", "vacation"],
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "express": "^4.18.2",
+    "ejs": "^3.1.9",
+    "ejs-mate": "^4.0.0",
+    "method-override": "^3.0.0",
+    "@prisma/client": "^5.7.1",
+    "dotenv": "^16.3.1",
+    "express-session": "^1.17.3",
+    "bcryptjs": "^2.4.3"
+  },
+  "devDependencies": {
+    "nodemon": "^3.0.2",
+    "prisma": "^5.7.1"
+  }
+}

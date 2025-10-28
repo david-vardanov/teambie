@@ -1,0 +1,56 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Team Management - <%= typeof title !== 'undefined' ? title : 'Dashboard' %></title>
+    <link rel="stylesheet" href="/css/style.css">
+</head>
+<body>
+    <nav class="navbar">
+        <div class="nav-container">
+            <a href="/" class="nav-brand">Team Management</a>
+            <ul class="nav-menu">
+                <li><a href="/events/calendar">Calendar</a></li>
+
+                <li class="nav-dropdown">
+                    <a href="#" class="nav-dropdown-toggle">Team ▾</a>
+                    <ul class="nav-dropdown-menu">
+                        <li><a href="/employees">See All</a></li>
+                        <% if (isAdmin) { %>
+                            <li><a href="/employees/new">Add Employee</a></li>
+                            <li><a href="/employees/archived">Archived</a></li>
+                        <% } %>
+                    </ul>
+                </li>
+
+                <li class="nav-dropdown">
+                    <a href="#" class="nav-dropdown-toggle">Events ▾</a>
+                    <ul class="nav-dropdown-menu">
+                        <% if (isAdmin) { %>
+                            <li><a href="/events">All Events</a></li>
+                        <% } %>
+                        <li><a href="/events/new">Add Event</a></li>
+                        <% if (isAdmin) { %>
+                            <li><a href="/events/moderate">Moderate Events</a></li>
+                            <li><a href="/events/global-holidays">Global Holidays</a></li>
+                        <% } %>
+                    </ul>
+                </li>
+
+                <% if (currentUser) { %>
+                    <li class="user-info">
+                        <span><%= currentUser.name %></span>
+                        <form action="/auth/logout" method="POST" class="logout-form">
+                            <button type="submit" class="logout-btn">Logout</button>
+                        </form>
+                    </li>
+                <% } %>
+            </ul>
+        </div>
+    </nav>
+    <main class="container">
+        <%- body %>
+    </main>
+</body>
+</html>

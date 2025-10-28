@@ -1,0 +1,67 @@
+<% layout('layouts/boilerplate') %>
+
+<div class="page-header">
+    <h1>Global Holidays</h1>
+</div>
+
+<p class="info-text">Global holidays are company-wide holidays (e.g., office closed). These days are automatically counted against all employees' holiday allowances.</p>
+
+<div class="card">
+    <div class="card-body">
+        <h2>Add Global Holiday</h2>
+        <form action="/events/global-holidays" method="POST" class="form">
+            <div class="form-group">
+                <label for="startDate">Start Date</label>
+                <input type="date" name="startDate" id="startDate" required>
+            </div>
+
+            <div class="form-group">
+                <label for="endDate">End Date (optional)</label>
+                <input type="date" name="endDate" id="endDate">
+                <small>Leave empty for single-day holidays</small>
+            </div>
+
+            <div class="form-group">
+                <label for="notes">Description</label>
+                <input type="text" name="notes" id="notes" placeholder="e.g., Christmas, New Year, Office Closed" required>
+            </div>
+
+            <div class="form-actions">
+                <button type="submit" class="btn btn-primary">Add Global Holiday</button>
+                <a href="/events/calendar" class="btn btn-secondary">Back to Calendar</a>
+            </div>
+        </form>
+    </div>
+</div>
+
+<div class="card">
+    <div class="card-body">
+        <h2>Existing Global Holidays</h2>
+        <% if (globalHolidays.length > 0) { %>
+            <div class="global-holidays-list">
+                <% globalHolidays.forEach(holiday => { %>
+                    <div class="global-holiday-item">
+                        <div class="holiday-info">
+                            <strong><%= holiday.notes || 'Global Holiday' %></strong>
+                            <p>
+                                <%= holiday.startDate.toDateString() %>
+                                <% if (holiday.endDate) { %>
+                                    to <%= holiday.endDate.toDateString() %>
+                                    <%
+                                        const days = Math.ceil((new Date(holiday.endDate) - new Date(holiday.startDate)) / (1000 * 60 * 60 * 24)) + 1;
+                                    %>
+                                    (<%= days %> day<%= days > 1 ? 's' : '' %>)
+                                <% } %>
+                            </p>
+                        </div>
+                        <form action="/events/global-holidays/<%= holiday.id %>?_method=DELETE" method="POST">
+                            <button type="submit" class="btn btn-danger btn-sm" onclick="return confirm('Delete this global holiday?')">Delete</button>
+                        </form>
+                    </div>
+                <% }) %>
+            </div>
+        <% } else { %>
+            <p class="empty-state">No global holidays set</p>
+        <% } %>
+    </div>
+</div>

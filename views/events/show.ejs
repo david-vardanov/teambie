@@ -1,0 +1,26 @@
+<% layout('layouts/boilerplate') %>
+
+<h1>Event Details</h1>
+
+<div class="card">
+    <div class="card-body">
+        <h2><%= event.type.replace(/_/g, ' ') %></h2>
+        <p><strong>Employee:</strong> <a href="/employees/<%= event.employee.id %>"><%= event.employee.name %></a></p>
+        <p><strong>Start Date:</strong> <%= event.startDate.toDateString() %></p>
+        <% if (event.endDate) { %>
+            <p><strong>End Date:</strong> <%= event.endDate.toDateString() %></p>
+            <%
+                const days = Math.ceil((new Date(event.endDate) - new Date(event.startDate)) / (1000 * 60 * 60 * 24)) + 1;
+            %>
+            <p><strong>Duration:</strong> <%= days %> day<%= days > 1 ? 's' : '' %></p>
+        <% } %>
+        <% if (event.notes) { %>
+            <p><strong>Notes:</strong> <%= event.notes %></p>
+        <% } %>
+    </div>
+</div>
+
+<div class="form-actions" style="margin-top: 20px;">
+    <a href="/events/<%= event.id %>/edit" class="btn btn-primary">Edit</a>
+    <a href="/events/calendar" class="btn btn-secondary">Back to Calendar</a>
+</div>

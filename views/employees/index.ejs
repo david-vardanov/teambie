@@ -1,0 +1,53 @@
+<% layout('layouts/boilerplate') %>
+
+<div class="page-header">
+    <h1>Employees</h1>
+    <div>
+        <% if (isAdmin) { %>
+            <a href="/employees/archived" class="btn btn-secondary">View Archived</a>
+            <a href="/employees/new" class="btn btn-primary">Add Employee</a>
+        <% } %>
+    </div>
+</div>
+
+<div class="employee-grid">
+    <% employees.forEach(employee => { %>
+        <%
+            const currentYear = new Date().getFullYear();
+            const vacationEvents = employee.events.filter(event => {
+                const eventYear = new Date(event.startDate).getFullYear();
+                return event.type === 'VACATION' && eventYear === currentYear;
+            });
+
+            let vacationDaysTaken = 0;
+            vacationEvents.forEach(event => {
+                const start = new Date(event.startDate);
+                const end = event.endDate ? new Date(event.endDate) : start;
+                const days = Math.ceil((end - start) / (1000 * 60 * 60 * 24)) + 1;
+                vacationDaysTaken += days;
+            });
+
+            const vacationDaysLeft = employee.vacationDaysPerYear - vacationDaysTaken;
+        %>
+        <div class="card">
+            <div class="card-body">
+                <h3><a href="/employees/<%= employee.id %>"><%= employee.name %></a></h3>
+                <p><strong>Email:</strong> <%= employee.email %></p>
+                <p><strong>Start Date:</strong> <%= employee.startDate.toDateString() %></p>
+                <div class="vacation-summary">
+                    <p><strong>Vacation Days:</strong></p>
+                    <p>Taken: <%= vacationDaysTaken %> / <%= employee.vacationDaysPerYear %></p>
+                    <p>Remaining: <%= vacationDaysLeft %></p>
+                </div>
+                <div class="card-actions">
+                    <a href="/employees/<%= employee.id %>" class="btn btn-sm btn-secondary">View</a>
+                    <a href="/employees/<%= employee.id %>/edit" class="btn btn-sm btn-primary">Edit</a>
+                </div>
+            </div>
+        </div>
+    <% }) %>
+</div>
+
+<% if (employees.length === 0) { %>
+    <p class="empty-state">No employees found. <a href="/employees/new">Add your first employee</a></p>
+<% } %>

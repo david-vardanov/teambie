@@ -1,0 +1,143 @@
+<% layout('layouts/boilerplate') %>
+
+<div class="calendar-header">
+    <h1><%= monthName %> <%= year %></h1>
+    <div class="calendar-nav">
+        <a href="/events/calendar?year=<%= month === 0 ? year - 1 : year %>&month=<%= month === 0 ? 11 : month - 1 %>" class="btn btn-secondary">Previous</a>
+        <a href="/events/calendar" class="btn btn-secondary">Today</a>
+        <a href="/events/calendar?year=<%= month === 11 ? year + 1 : year %>&month=<%= month === 11 ? 0 : month + 1 %>" class="btn btn-secondary">Next</a>
+    </div>
+</div>
+
+<div class="calendar-layout">
+    <div class="stats-sidebar">
+        <div class="card">
+            <div class="card-body">
+                <h2>Employee Stats (<%= new Date().getFullYear() %>)</h2>
+                <% if (employeeStats.length > 0) { %>
+                    <div class="employee-stats-table">
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th>Employee</th>
+                                    <th>Vacation</th>
+                                    <th>Holiday</th>
+                                    <th>Sick</th>
+                                    <th>Home Office</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <% employeeStats.forEach(emp => { %>
+                                    <tr>
+                                        <td><a href="/employees/<%= emp.id %>"><%= emp.name %></a></td>
+                                        <td><%= emp.vacationDays %>/<%= emp.vacationAllowance %></td>
+                                        <td><%= emp.holidayDays %>/<%= emp.holidayAllowance %></td>
+                                        <td><%= emp.sickDays %></td>
+                                        <td><%= emp.homeOfficeDays %></td>
+                                    </tr>
+                                <% }) %>
+                            </tbody>
+                        </table>
+                    </div>
+                <% } else { %>
+                    <p class="empty-state">No employees found</p>
+                <% } %>
+            </div>
+        </div>
+
+        <div class="card">
+            <div class="card-body">
+                <h3>Upcoming Events</h3>
+                <% if (upcomingEvents.length > 0) { %>
+                    <div class="upcoming-events-list">
+                        <% upcomingEvents.forEach(event => { %>
+                            <a href="/events/<%= event.id %>" class="upcoming-event">
+                                <span class="badge badge-<%= event.type.toLowerCase().replace(/_/g, '-') %>"><%= event.type.replace(/_/g, ' ') %></span>
+                                <div class="event-details">
+                                    <strong><%= event.employee ? event.employee.name : (event.notes || 'Global Holiday') %></strong>
+                                    <small><%= event.startDate.toLocaleDateString() %></small>
+                                </div>
+                            </a>
+                        <% }) %>
+                    </div>
+                <% } else { %>
+                    <p class="empty-state">No upcoming events in the next 7 days</p>
+                <% } %>
+            </div>
+        </div>
+
+        <div class="card">
+            <div class="card-body">
+                <h3>Legend</h3>
+                <div class="legend-vertical">
+                    <span class="legend-item"><span class="badge badge-vacation">Vacation</span></span>
+                    <span class="legend-item"><span class="badge badge-holiday">Holiday</span></span>
+                    <span class="legend-item"><span class="badge badge-sick-day">Sick Day</span></span>
+                    <span class="legend-item"><span class="badge badge-home-office">Home Office</span></span>
+                    <span class="legend-item"><span class="badge badge-late-left-early">Late/Left Early</span></span>
+                    <span class="legend-item"><span class="badge badge-day-off-paid">Day Off Paid</span></span>
+                    <span class="legend-item"><span class="badge badge-day-off-unpaid">Day Off Unpaid</span></span>
+                    <span class="legend-item"><span class="badge badge-start-working">Start Working</span></span>
+                    <span class="legend-item"><span class="badge badge-probation-finished">Probation Finished</span></span>
+                    <span class="legend-item"><span class="badge badge-last-day">Last Day</span></span>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="calendar-main">
+        <div class="calendar">
+    <div class="calendar-weekdays">
+        <div class="weekday">Sun</div>
+        <div class="weekday">Mon</div>
+        <div class="weekday">Tue</div>
+        <div class="weekday">Wed</div>
+        <div class="weekday">Thu</div>
+        <div class="weekday">Fri</div>
+        <div class="weekday">Sat</div>
+    </div>
+    <div class="calendar-days">
+        <% for (let i = 0; i < startingDayOfWeek; i++) { %>
+            <div class="calendar-day empty"></div>
+        <% } %>
+
+        <% for (let day = 1; day <= daysInMonth; day++) { %>
+            <%
+                const currentDate = new Date(year, month, day);
+                const isToday = today.getDate() === day && today.getMonth() === month && today.getFullYear() === year;
+                const dayEvents = events.filter(e => {
+                    const eventStart = new Date(e.startDate);
+                    const eventEnd = e.endDate ? new Date(e.endDate) : eventStart;
+                    return currentDate >= new Date(eventStart.toDateString()) && currentDate <= new Date(eventEnd.toDateString());
+                });
+            %>
+            <div class="calendar-day <%= isToday ? 'today' : '' %>">
+                <div class="day-number"><%= day %></div>
+                <div class="day-events">
+                    <% dayEvents.forEach(event => { %>
+                        <%
+                            let displayText = '';
+                            let title = '';
+
+                            if (event.employee) {
+                                // For employee events: show first name + event type
+                                const firstName = event.employee.name.split(' ')[0];
+                                displayText = `${firstName} - ${event.type.replace(/_/g, ' ')}`;
+                                title = `${event.employee.name} - ${event.type.replace(/_/g, ' ')}`;
+                            } else {
+                                // For global holidays: just show the notes
+                                displayText = event.notes || 'Holiday';
+                                title = event.notes || 'Global Holiday';
+                            }
+                        %>
+                        <a href="/events/<%= event.id %>" class="event-item badge badge-<%= event.type.toLowerCase().replace(/_/g, '-') %>" title="<%= title %>">
+                            <%= displayText %>
+                        </a>
+                    <% }) %>
+                </div>
+            </div>
+        <% } %>
+    </div>
+</div>
+    </div>
+</div>

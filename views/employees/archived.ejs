@@ -1,0 +1,56 @@
+<% layout('layouts/boilerplate') %>
+
+<div class="page-header">
+    <h1>Archived Employees</h1>
+    <a href="/employees" class="btn btn-secondary">Back to Active Employees</a>
+</div>
+
+<% if (employees.length > 0) { %>
+    <div class="employee-grid">
+        <% employees.forEach(employee => { %>
+            <%
+                const currentYear = new Date().getFullYear();
+                const vacationEvents = employee.events.filter(event => {
+                    const eventYear = new Date(event.startDate).getFullYear();
+                    return event.type === 'VACATION' && eventYear === currentYear;
+                });
+
+                let vacationDaysTaken = 0;
+                vacationEvents.forEach(event => {
+                    const start = new Date(event.startDate);
+                    const end = event.endDate ? new Date(event.endDate) : start;
+                    const days = Math.ceil((end - start) / (1000 * 60 * 60 * 24)) + 1;
+                    vacationDaysTaken += days;
+                });
+
+                const vacationDaysLeft = employee.vacationDaysPerYear - vacationDaysTaken;
+            %>
+            <div class="card archived-card">
+                <div class="card-body">
+                    <div class="archived-badge">ARCHIVED</div>
+                    <h3><a href="/employees/<%= employee.id %>"><%= employee.name %></a></h3>
+                    <p><strong>Email:</strong> <%= employee.email %></p>
+                    <p><strong>Start Date:</strong> <%= employee.startDate.toDateString() %></p>
+                    <% if (employee.archivedAt) { %>
+                        <p><strong>Archived:</strong> <%= employee.archivedAt.toDateString() %></p>
+                    <% } %>
+                    <div class="card-actions">
+                        <a href="/employees/<%= employee.id %>" class="btn btn-sm btn-secondary">View</a>
+                        <form action="/employees/<%= employee.id %>/unarchive" method="POST" style="display: inline;">
+                            <button type="submit" class="btn btn-sm btn-primary" onclick="return confirm('Unarchive this employee?')">Unarchive</button>
+                        </form>
+                        <form action="/employees/<%= employee.id %>?_method=DELETE" method="POST" style="display: inline;">
+                            <button type="submit" class="btn btn-sm btn-danger" onclick="return confirm('PERMANENTLY DELETE this employee and all their events? This cannot be undone!')">Delete Permanently</button>
+                        </form>
+                    </div>
+                </div>
+            </div>
+        <% }) %>
+    </div>
+<% } else { %>
+    <div class="card">
+        <div class="card-body">
+            <p class="empty-state">No archived employees</p>
+        </div>
+    </div>
+<% } %>

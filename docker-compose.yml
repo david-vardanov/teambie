@@ -1,0 +1,18 @@
+version: '3.8'
+
+services:
+  postgres:
+    image: postgres:15-alpine
+    container_name: team_management_db
+    restart: always
+    environment:
+      POSTGRES_USER: teamadmin
+      POSTGRES_PASSWORD: teampass123
+      POSTGRES_DB: team_management
+    ports:
+      - "5098:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+
+volumes:
+  postgres_data:
