@@ -47,7 +47,32 @@
 
         <div class="card">
             <div class="card-body">
-                <h3>Upcoming Events</h3>
+                <h3>📅 Today's Events</h3>
+                <% if (todaysEvents.length > 0) { %>
+                    <div class="upcoming-events-list">
+                        <% todaysEvents.forEach(event => { %>
+                            <a href="/events/<%= event.id %>" class="upcoming-event">
+                                <span class="badge badge-<%= event.type.toLowerCase().replace(/_/g, '-') %>"><%= event.type.replace(/_/g, ' ') %></span>
+                                <div class="event-details">
+                                    <strong><%= event.employee ? event.employee.name : (event.notes || 'Global Holiday') %></strong>
+                                    <% if (event.endDate && event.startDate.toDateString() !== event.endDate.toDateString()) { %>
+                                        <small><%= event.startDate.toLocaleDateString() %> - <%= event.endDate.toLocaleDateString() %></small>
+                                    <% } else { %>
+                                        <small>Today</small>
+                                    <% } %>
+                                </div>
+                            </a>
+                        <% }) %>
+                    </div>
+                <% } else { %>
+                    <p class="empty-state">No events today</p>
+                <% } %>
+            </div>
+        </div>
+
+        <div class="card">
+            <div class="card-body">
+                <h3>📆 Upcoming Events</h3>
                 <% if (upcomingEvents.length > 0) { %>
                     <div class="upcoming-events-list">
                         <% upcomingEvents.forEach(event => { %>

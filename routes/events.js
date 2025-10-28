@@ -150,13 +150,48 @@ router.get('/calendar', async (req, res) => {
       };
     });
 
-    // Upcoming events (next 7 days)
+    // Today's events
+    const endOfToday = new Date(today);
+    endOfToday.setHours(23, 59, 59, 999);
+    const todaysEvents = await prisma.event.findMany({
+      where: {
+        OR: [
+          {
+            startDate: {
+              gte: today,
+              lte: endOfToday
+            }
+          },
+          {
+            AND: [
+              { startDate: { lte: endOfToday } },
+              {
+                OR: [
+                  { endDate: { gte: today } },
+                  { endDate: null }
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      include: {
+        employee: true
+      },
+      orderBy: {
+        startDate: 'asc'
+      }
+    });
+
+    // Upcoming events (next 7 days, excluding today)
+    const tomorrow = new Date(today);
+    tomorrow.setDate(today.getDate() + 1);
     const nextWeek = new Date(today);
     nextWeek.setDate(today.getDate() + 7);
     const upcomingEvents = await prisma.event.findMany({
       where: {
         startDate: {
-          gte: today,
+          gte: tomorrow,
           lte: nextWeek
         }
       },
@@ -184,6 +219,7 @@ router.get('/calendar', async (req, res) => {
       employees,
       today,
       employeeStats,
+      todaysEvents,
       upcomingEvents
     });
   } catch (error) {
