@@ -1,0 +1,156 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>User Management - Team Management</title>
+    <link rel="stylesheet" href="/css/style.css">
+</head>
+<body>
+    <nav class="navbar">
+        <div class="nav-container">
+            <a href="/" class="nav-brand">Team Management</a>
+            <ul class="nav-menu">
+                <li><a href="/events/calendar">Calendar</a></li>
+                <li><a href="/employees">Team</a></li>
+                <li><a href="/events">Events</a></li>
+                <li><a href="/config/bot">Settings</a></li>
+                <li><a href="/users" class="active">Users</a></li>
+            </ul>
+        </div>
+    </nav>
+    <main class="container">
+        <div class="page-header">
+            <h1>User Management</h1>
+            <p>Manage admin access and user roles</p>
+        </div>
+
+        <% if (locals.message) { %>
+            <div class="alert alert-<%= message.type %>">
+                <%= message.text %>
+            </div>
+            <% delete locals.message; %>
+        <% } %>
+
+        <div class="card">
+            <div class="card-body">
+                <table class="table">
+                    <thead>
+                        <tr>
+                            <th>Name</th>
+                            <th>Email</th>
+                            <th>Role</th>
+                            <th>Employee Profile</th>
+                            <th>Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <% users.forEach(user => { %>
+                            <tr>
+                                <td><%= user.name %></td>
+                                <td><%= user.email %></td>
+                                <td>
+                                    <% if (user.role === 'ADMIN') { %>
+                                        <span class="badge badge-admin">👑 Admin</span>
+                                    <% } else { %>
+                                        <span class="badge badge-employee">👤 Employee</span>
+                                    <% } %>
+                                </td>
+                                <td>
+                                    <% if (user.hasEmployee) { %>
+                                        <a href="/employees/<%= user.employeeId %>" class="btn-link">View Profile</a>
+                                    <% } else { %>
+                                        <span style="color: #999;">No profile</span>
+                                    <% } %>
+                                </td>
+                                <td>
+                                    <% if (user.role === 'ADMIN') { %>
+                                        <form action="/users/<%= user.id %>/demote" method="POST" style="display: inline;">
+                                            <button type="submit" class="btn btn-sm btn-secondary"
+                                                    onclick="return confirm('Demote <%= user.name %> from admin?')">
+                                                Demote to Employee
+                                            </button>
+                                        </form>
+                                    <% } else { %>
+                                        <form action="/users/<%= user.id %>/promote" method="POST" style="display: inline;">
+                                            <button type="submit" class="btn btn-sm btn-primary"
+                                                    onclick="return confirm('Promote <%= user.name %> to admin?')">
+                                                Promote to Admin
+                                            </button>
+                                        </form>
+                                    <% } %>
+                                </td>
+                            </tr>
+                        <% }) %>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <div class="card">
+            <div class="card-body">
+                <h3>About Admin Access</h3>
+                <p>Admins have full access to:</p>
+                <ul>
+                    <li>View and manage all employees</li>
+                    <li>Approve/reject leave requests</li>
+                    <li>View attendance reports</li>
+                    <li>Configure bot settings</li>
+                    <li>Manage global holidays</li>
+                    <li>Promote/demote other users</li>
+                </ul>
+                <p style="color: #dc3545; margin-top: 15px;">
+                    <strong>Note:</strong> You cannot demote yourself from admin.
+                </p>
+            </div>
+        </div>
+    </main>
+</body>
+</html>
+
+<style>
+.alert {
+    padding: 15px;
+    margin-bottom: 20px;
+    border-radius: 5px;
+}
+.alert-success {
+    background-color: #d4edda;
+    color: #155724;
+    border: 1px solid #c3e6cb;
+}
+.alert-error {
+    background-color: #f8d7da;
+    color: #721c24;
+    border: 1px solid #f5c6cb;
+}
+.badge {
+    padding: 4px 8px;
+    border-radius: 4px;
+    font-size: 12px;
+    font-weight: bold;
+}
+.badge-admin {
+    background-color: #ffc107;
+    color: #000;
+}
+.badge-employee {
+    background-color: #6c757d;
+    color: #fff;
+}
+.btn-link {
+    color: #007bff;
+    text-decoration: none;
+}
+.btn-link:hover {
+    text-decoration: underline;
+}
+.btn-sm {
+    padding: 4px 12px;
+    font-size: 13px;
+}
+.active {
+    font-weight: bold;
+    color: #007bff !important;
+}
+</style>

@@ -39,6 +39,7 @@ model Employee {
 
   // Telegram bot integration
   telegramUserId            BigInt?             @unique
+  exemptFromTracking        Boolean             @default(false)
   arrivalWindowStart        String              @default("10:00")
   arrivalWindowEnd          String              @default("11:00")
   workHoursPerDay           Int                 @default(8)

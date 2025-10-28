@@ -83,6 +83,11 @@ async function checkArrivalTimes(bot, prisma) {
     });
 
     for (const employee of employees) {
+      // Skip if exempt from tracking
+      if (employee.exemptFromTracking) {
+        continue;
+      }
+
       // Skip if today is recurring home office day
       if (isRecurringHomeOfficeDay(employee)) {
         continue;
@@ -178,6 +183,11 @@ async function followUpPendingArrivals(bot, prisma) {
     for (const checkIn of checkIns) {
       const employee = checkIn.employee;
 
+      // Skip if exempt from tracking
+      if (employee.exemptFromTracking) {
+        continue;
+      }
+
       // Check if this is a late arrival (expected time > window end)
       const expectedTime = new Date(checkIn.expectedArrivalAt);
       const expectedTimeStr = `${expectedTime.getHours()}:${String(expectedTime.getMinutes()).padStart(2, '0')}`;
@@ -256,6 +266,9 @@ async function checkMissedCheckIns(bot, prisma) {
     let missedEmployees = [];
 
     for (const employee of employees) {
+      // Skip if exempt from tracking
+      if (employee.exemptFromTracking) continue;
+
       // Skip if recurring home office or has event
       if (isRecurringHomeOfficeDay(employee)) continue;
 

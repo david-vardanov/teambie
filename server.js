@@ -47,6 +47,7 @@ const authRoutes = require('./routes/auth');
 const employeeRoutes = require('./routes/employees');
 const eventRoutes = require('./routes/events');
 const configRoutes = require('./routes/settings');
+const userRoutes = require('./routes/users');
 const { requireAuth } = require('./middleware/auth');
 
 // Public routes
@@ -56,6 +57,7 @@ app.use('/auth', authRoutes);
 app.use('/employees', requireAuth, employeeRoutes);
 app.use('/events', requireAuth, eventRoutes);
 app.use('/config', requireAuth, configRoutes);
+app.use('/users', requireAuth, userRoutes);
 
 // Home route - redirect to calendar
 app.get('/', (req, res) => {
