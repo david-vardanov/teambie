@@ -35,10 +35,18 @@ app.use(methodOverride('_method'));
 app.use(express.static(path.join(__dirname, 'public')));
 app.use(addUserToLocals);
 
+// Flash message middleware
+app.use((req, res, next) => {
+  res.locals.message = req.session.message;
+  delete req.session.message;
+  next();
+});
+
 // Routes
 const authRoutes = require('./routes/auth');
 const employeeRoutes = require('./routes/employees');
 const eventRoutes = require('./routes/events');
+const configRoutes = require('./routes/settings');
 const { requireAuth } = require('./middleware/auth');
 
 // Public routes
@@ -47,6 +55,7 @@ app.use('/auth', authRoutes);
 // Protected routes
 app.use('/employees', requireAuth, employeeRoutes);
 app.use('/events', requireAuth, eventRoutes);
+app.use('/config', requireAuth, configRoutes);
 
 // Home route - redirect to calendar
 app.get('/', (req, res) => {
@@ -57,8 +66,25 @@ app.get('/', (req, res) => {
 });
 
 // Start server
-app.listen(PORT, () => {
+app.listen(PORT, async () => {
   console.log(`Server running on http://localhost:${PORT}`);
+
+  // Start Telegram bot
+  try {
+    const settings = await prisma.botSettings.findFirst();
+    const botToken = settings?.telegramBotToken || process.env.TELEGRAM_BOT_TOKEN;
+
+    if (botToken && botToken !== 'YOUR_TELEGRAM_BOT_TOKEN_HERE' && settings?.botEnabled) {
+      const { startBot } = require('./bot/index');
+      await startBot(botToken); // Pass the token to startBot
+      console.log('✅ Telegram bot started');
+    } else {
+      console.log('ℹ️  Telegram bot disabled (configure in Settings → Telegram Bot)');
+    }
+  } catch (error) {
+    console.error('⚠️  Failed to start Telegram bot:', error.message);
+    console.log('   The web server will continue running.');
+  }
 });
 
 // Graceful shutdown

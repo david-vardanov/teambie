@@ -1,0 +1,239 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Bot Settings - Team Management</title>
+    <link rel="stylesheet" href="/css/style.css">
+</head>
+<body>
+    <nav class="navbar">
+        <div class="nav-container">
+            <a href="/" class="nav-brand">Team Management</a>
+            <ul class="nav-menu">
+                <li><a href="/events/calendar">Calendar</a></li>
+                <li><a href="/employees">Team</a></li>
+                <li><a href="/events">Events</a></li>
+                <li><a href="/config/bot">Settings</a></li>
+            </ul>
+        </div>
+    </nav>
+    <main class="container">
+        <div class="page-header">
+            <h1>Telegram Bot Settings</h1>
+        </div>
+
+        <% if (locals.message) { %>
+            <div class="alert alert-<%= message.type %>">
+                <%= message.text %>
+            </div>
+        <% } %>
+
+        <div class="card">
+            <div class="card-body">
+                <h2>Bot Status</h2>
+                <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 15px;">
+                    <div>
+                        <strong>Bot Enabled:</strong><br>
+                        <%= settings.botEnabled ? '✅ Yes' : '❌ No' %>
+                    </div>
+                    <div>
+                        <strong>Token Configured:</strong><br>
+                        <%= tokenConfigured ? '✅ Yes' : '❌ No' %>
+                    </div>
+                    <div>
+                        <strong>Connected Employees:</strong><br>
+                        <%= linkedEmployees %> / <%= totalEmployees %>
+                    </div>
+                    <div>
+                        <strong>Pending Events:</strong><br>
+                        <%= pendingEvents %>
+                    </div>
+                    <div>
+                        <strong>Timezone:</strong><br>
+                        GMT+<%= settings.timezoneOffset %>
+                    </div>
+                </div>
+                <% if (tokenConfigured) { %>
+                    <div style="margin-top: 20px;">
+                        <form action="/config/bot/test" method="POST" style="display: inline;">
+                            <button type="submit" class="btn btn-secondary">Test Bot Connection</button>
+                        </form>
+                    </div>
+                <% } %>
+            </div>
+        </div>
+
+        <form action="/config/bot" method="POST" class="form">
+            <div class="card">
+                <div class="card-body">
+                    <h2>Bot Configuration</h2>
+
+                    <div class="form-group">
+                        <label for="telegramBotToken">Telegram Bot Token</label>
+                        <input type="text" name="telegramBotToken" id="telegramBotToken"
+                               value="<%= maskedToken %>"
+                               placeholder="1234567890:ABCdefGHIjklMNOpqrsTUVwxyz">
+                        <small style="color: #666;">Get from @BotFather on Telegram. Restart bot after changing.</small>
+                    </div>
+
+                    <div class="form-group">
+                        <label>
+                            <input type="checkbox" name="botEnabled" <%= settings.botEnabled ? 'checked' : '' %>>
+                            Enable Bot Features
+                        </label>
+                    </div>
+                </div>
+            </div>
+
+            <div class="card">
+                <div class="card-body">
+                    <h2>Schedule Configuration</h2>
+
+                    <div class="form-group">
+                        <label for="timezoneOffset">Timezone Offset (GMT+)</label>
+                        <input type="number" name="timezoneOffset" id="timezoneOffset"
+                               value="<%= settings.timezoneOffset %>" min="-12" max="14" required>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="morningReportTime">Morning Report Time</label>
+                        <input type="time" name="morningReportTime" id="morningReportTime"
+                               value="<%= settings.morningReportTime %>" required>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="endOfDayReportTime">End of Day Report Time</label>
+                        <input type="time" name="endOfDayReportTime" id="endOfDayReportTime"
+                               value="<%= settings.endOfDayReportTime %>" required>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="missedCheckInTime">Missed Check-in Alert Time</label>
+                        <input type="time" name="missedCheckInTime" id="missedCheckInTime"
+                               value="<%= settings.missedCheckInTime %>" required>
+                    </div>
+                </div>
+            </div>
+
+            <div class="form-actions">
+                <button type="submit" class="btn btn-primary">Save Settings</button>
+                <a href="/" class="btn btn-secondary">Cancel</a>
+            </div>
+        </form>
+
+        <div class="card">
+            <div class="card-body">
+                <h2>📱 Employee Connection Status</h2>
+                <p><strong>Connected:</strong> <%= linkedEmployees %> / <%= totalEmployees %> employees</p>
+
+                <% if (allEmployees.length > 0) { %>
+                    <table style="width: 100%; margin-top: 15px; border-collapse: collapse;">
+                        <thead>
+                            <tr style="border-bottom: 2px solid #ddd;">
+                                <th style="text-align: left; padding: 8px;">Employee</th>
+                                <th style="text-align: left; padding: 8px;">Email</th>
+                                <th style="text-align: center; padding: 8px;">Status</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <% allEmployees.forEach(emp => { %>
+                                <tr style="border-bottom: 1px solid #eee;">
+                                    <td style="padding: 8px;"><%= emp.name %></td>
+                                    <td style="padding: 8px; color: #666;"><%= emp.email %></td>
+                                    <td style="padding: 8px; text-align: center;">
+                                        <% if (emp.telegramUserId) { %>
+                                            <span style="color: #28a745;">✅ Connected</span>
+                                        <% } else { %>
+                                            <span style="color: #dc3545;">❌ Not Connected</span>
+                                        <% } %>
+                                    </td>
+                                </tr>
+                            <% }) %>
+                        </tbody>
+                    </table>
+                <% } %>
+
+                <hr style="margin: 20px 0;">
+
+                <h3>How to Link Account</h3>
+                <p>Each employee needs to complete these steps:</p>
+                <ol>
+                    <li><strong>Find the bot:</strong> Search for your bot on Telegram (get bot username from @BotFather)</li>
+                    <li><strong>Start chat:</strong> Send <code>/start</code> command to the bot</li>
+                    <li><strong>Link account:</strong> Bot will ask for email - reply with: <code>your.email@company.com</code></li>
+                    <li><strong>Confirm:</strong> Bot will confirm the account is linked ✅</li>
+                </ol>
+                <p style="background: #fff3cd; padding: 10px; border-radius: 5px; border-left: 4px solid #ffc107; margin-top: 10px;">
+                    <strong>⚠️ Important:</strong> Employees must use the exact email address from their profile (case-insensitive).
+                </p>
+
+                <hr style="margin: 20px 0;">
+
+                <h3>📋 Bot Commands</h3>
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px;">
+                    <div>
+                        <p><strong>For Employees:</strong></p>
+                        <ul>
+                            <li><code>/start</code> - Link account</li>
+                            <li><code>/checkin</code> - Check in when you arrive at office</li>
+                            <li><code>/checkout</code> - Check out when you leave</li>
+                            <li><code>/mystatus</code> - View schedule & settings</li>
+                            <li><code>/balance</code> - View vacation balance</li>
+                            <li><code>/homeoffice [date]</code> - Request home office (1 day advance)</li>
+                            <li><code>/vacation start [end]</code> - Request vacation (2+ days advance)</li>
+                            <li><code>/sick</code> - Report sick day for tomorrow</li>
+                            <li><code>/help</code> - Show available commands</li>
+                        </ul>
+                        <p style="font-size: 12px; color: #666; margin-top: 5px;">
+                            Examples:<br>
+                            <code>/homeoffice</code> (tomorrow)<br>
+                            <code>/homeoffice 2025-12-15</code><br>
+                            <code>/vacation 2025-12-20 2025-12-25</code>
+                        </p>
+                    </div>
+                    <div>
+                        <p><strong>For Admins:</strong></p>
+                        <ul>
+                            <li><code>/teamstatus</code> - Current team presence</li>
+                            <li><code>/pending</code> - View pending events</li>
+                            <li><code>/weekreport</code> - Weekly statistics</li>
+                            <li><code>/broadcast</code> - Send announcement</li>
+                        </ul>
+                    </div>
+                </div>
+
+                <hr style="margin: 20px 0;">
+
+                <h3>🔧 Bot Runs Automatically</h3>
+                <p>The Telegram bot starts automatically when you run:</p>
+                <pre style="background: #f5f5f5; padding: 10px; border-radius: 5px;">npm run dev</pre>
+                <p style="color: #666; font-size: 14px;">Bot only runs if enabled and token is configured. Check console for status.</p>
+            </div>
+        </div>
+    </main>
+</body>
+</html>
+
+<style>
+.alert {
+    padding: 15px;
+    margin-bottom: 20px;
+    border-radius: 5px;
+}
+.alert-success {
+    background-color: #d4edda;
+    color: #155724;
+    border: 1px solid #c3e6cb;
+}
+.alert-error {
+    background-color: #f8d7da;
+    color: #721c24;
+    border: 1px solid #f5c6cb;
+}
+code {
+    background: #f5f5f5;
+    padding: 2px 6px;
+    border-radius: 3px;
+}
+</style>

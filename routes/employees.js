@@ -53,14 +53,43 @@ router.get('/new', (req, res) => {
 // Create employee
 router.post('/', async (req, res) => {
   try {
-    const { name, email, startDate, vacationDaysPerYear, holidayDaysPerYear } = req.body;
+    const {
+      name,
+      email,
+      startDate,
+      vacationDaysPerYear,
+      holidayDaysPerYear,
+      arrivalWindowStart,
+      arrivalWindowEnd,
+      workHoursPerDay,
+      halfDayOnFridays,
+      workHoursOnFriday,
+      recurringHomeOfficeDays
+    } = req.body;
+
+    // Handle recurringHomeOfficeDays - can be array or single value
+    let homeOfficeDays = [];
+    if (recurringHomeOfficeDays) {
+      if (Array.isArray(recurringHomeOfficeDays)) {
+        homeOfficeDays = recurringHomeOfficeDays.map(d => parseInt(d));
+      } else {
+        homeOfficeDays = [parseInt(recurringHomeOfficeDays)];
+      }
+    }
+
     const employee = await prisma.employee.create({
       data: {
         name,
         email,
         startDate: new Date(startDate),
         vacationDaysPerYear: parseInt(vacationDaysPerYear) || 28,
-        holidayDaysPerYear: parseInt(holidayDaysPerYear) || 14
+        holidayDaysPerYear: parseInt(holidayDaysPerYear) || 14,
+        arrivalWindowStart: arrivalWindowStart || '10:00',
+        arrivalWindowEnd: arrivalWindowEnd || '11:00',
+        workHoursPerDay: parseInt(workHoursPerDay) || 8,
+        halfDayOnFridays: halfDayOnFridays === 'on' || halfDayOnFridays === true,
+        workHoursOnFriday: parseInt(workHoursOnFriday) || 8,
+        recurringHomeOfficeDays: homeOfficeDays
       }
     });
 
@@ -158,7 +187,30 @@ router.get('/:id/edit', async (req, res) => {
 // Update employee
 router.put('/:id', async (req, res) => {
   try {
-    const { name, email, startDate, vacationDaysPerYear, holidayDaysPerYear } = req.body;
+    const {
+      name,
+      email,
+      startDate,
+      vacationDaysPerYear,
+      holidayDaysPerYear,
+      arrivalWindowStart,
+      arrivalWindowEnd,
+      workHoursPerDay,
+      halfDayOnFridays,
+      workHoursOnFriday,
+      recurringHomeOfficeDays
+    } = req.body;
+
+    // Handle recurringHomeOfficeDays - can be array or single value
+    let homeOfficeDays = [];
+    if (recurringHomeOfficeDays) {
+      if (Array.isArray(recurringHomeOfficeDays)) {
+        homeOfficeDays = recurringHomeOfficeDays.map(d => parseInt(d));
+      } else {
+        homeOfficeDays = [parseInt(recurringHomeOfficeDays)];
+      }
+    }
+
     await prisma.employee.update({
       where: { id: parseInt(req.params.id) },
       data: {
@@ -166,7 +218,13 @@ router.put('/:id', async (req, res) => {
         email,
         startDate: new Date(startDate),
         vacationDaysPerYear: parseInt(vacationDaysPerYear),
-        holidayDaysPerYear: parseInt(holidayDaysPerYear)
+        holidayDaysPerYear: parseInt(holidayDaysPerYear),
+        arrivalWindowStart: arrivalWindowStart || '10:00',
+        arrivalWindowEnd: arrivalWindowEnd || '11:00',
+        workHoursPerDay: parseInt(workHoursPerDay) || 8,
+        halfDayOnFridays: halfDayOnFridays === 'on' || halfDayOnFridays === true,
+        workHoursOnFriday: parseInt(workHoursOnFriday) || 8,
+        recurringHomeOfficeDays: homeOfficeDays
       }
     });
     res.redirect(`/employees/${req.params.id}`);

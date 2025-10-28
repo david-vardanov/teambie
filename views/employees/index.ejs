@@ -31,7 +31,14 @@
         %>
         <div class="card">
             <div class="card-body">
-                <h3><a href="/employees/<%= employee.id %>"><%= employee.name %></a></h3>
+                <h3>
+                    <a href="/employees/<%= employee.id %>"><%= employee.name %></a>
+                    <% if (employee.telegramUserId) { %>
+                        <span class="badge badge-success" title="Telegram connected">📱</span>
+                    <% } else { %>
+                        <span class="badge badge-secondary" title="Telegram not connected">📱</span>
+                    <% } %>
+                </h3>
                 <p><strong>Email:</strong> <%= employee.email %></p>
                 <p><strong>Start Date:</strong> <%= employee.startDate.toDateString() %></p>
                 <div class="vacation-summary">

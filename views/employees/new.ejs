@@ -28,6 +28,68 @@
         <input type="number" name="holidayDaysPerYear" id="holidayDaysPerYear" value="14" min="0" required>
     </div>
 
+    <hr style="margin: 25px 0;">
+    <h3>Telegram Bot Settings</h3>
+
+    <div class="form-group">
+        <label for="arrivalWindowStart">Arrival Window Start</label>
+        <input type="time" name="arrivalWindowStart" id="arrivalWindowStart" value="10:00" required>
+        <small style="color: #666;">When employee can start arriving</small>
+    </div>
+
+    <div class="form-group">
+        <label for="arrivalWindowEnd">Arrival Window End</label>
+        <input type="time" name="arrivalWindowEnd" id="arrivalWindowEnd" value="11:00" required>
+        <small style="color: #666;">Latest time to arrive without being late</small>
+    </div>
+
+    <div class="form-group">
+        <label for="workHoursPerDay">Work Hours Per Day</label>
+        <input type="number" name="workHoursPerDay" id="workHoursPerDay" value="8" min="1" max="12" required>
+        <small style="color: #666;">Standard work hours (usually 8)</small>
+    </div>
+
+    <div class="form-group">
+        <label>
+            <input type="checkbox" name="halfDayOnFridays" id="halfDayOnFridays">
+            Half Day on Fridays
+        </label>
+    </div>
+
+    <div class="form-group">
+        <label for="workHoursOnFriday">Work Hours on Friday</label>
+        <input type="number" name="workHoursOnFriday" id="workHoursOnFriday" value="8" min="1" max="12" required>
+        <small style="color: #666;">If half day, usually 4 hours</small>
+    </div>
+
+    <div class="form-group">
+        <label>Recurring Home Office Days</label>
+        <div style="display: flex; flex-wrap: wrap; gap: 10px; margin-top: 5px;">
+            <label style="display: flex; align-items: center; gap: 5px;">
+                <input type="checkbox" name="recurringHomeOfficeDays" value="0"> Sun
+            </label>
+            <label style="display: flex; align-items: center; gap: 5px;">
+                <input type="checkbox" name="recurringHomeOfficeDays" value="1"> Mon
+            </label>
+            <label style="display: flex; align-items: center; gap: 5px;">
+                <input type="checkbox" name="recurringHomeOfficeDays" value="2"> Tue
+            </label>
+            <label style="display: flex; align-items: center; gap: 5px;">
+                <input type="checkbox" name="recurringHomeOfficeDays" value="3"> Wed
+            </label>
+            <label style="display: flex; align-items: center; gap: 5px;">
+                <input type="checkbox" name="recurringHomeOfficeDays" value="4"> Thu
+            </label>
+            <label style="display: flex; align-items: center; gap: 5px;">
+                <input type="checkbox" name="recurringHomeOfficeDays" value="5"> Fri
+            </label>
+            <label style="display: flex; align-items: center; gap: 5px;">
+                <input type="checkbox" name="recurringHomeOfficeDays" value="6"> Sat
+            </label>
+        </div>
+        <small style="color: #666;">Days when employee always works from home</small>
+    </div>
+
     <div class="form-actions">
         <button type="submit" class="btn btn-primary">Create Employee</button>
         <a href="/employees" class="btn btn-secondary">Cancel</a>

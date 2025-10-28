@@ -8,14 +8,15 @@ datasource db {
 }
 
 model User {
-  id        Int      @id @default(autoincrement())
-  email     String   @unique
-  password  String
-  name      String
-  role      UserRole @default(EMPLOYEE)
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-  events    Event[]
+  id          Int           @id @default(autoincrement())
+  email       String        @unique
+  password    String
+  name        String
+  role        UserRole      @default(EMPLOYEE)
+  createdAt   DateTime      @default(now())
+  updatedAt   DateTime      @updatedAt
+  events      Event[]
+  botSettings BotSettings[]
 }
 
 enum UserRole {
@@ -24,17 +25,28 @@ enum UserRole {
 }
 
 model Employee {
-  id                    Int       @id @default(autoincrement())
-  name                  String
-  email                 String    @unique
-  startDate             DateTime
-  vacationDaysPerYear   Int       @default(28)
-  holidayDaysPerYear    Int       @default(14)
-  archived              Boolean   @default(false)
-  archivedAt            DateTime?
-  createdAt             DateTime  @default(now())
-  updatedAt             DateTime  @updatedAt
-  events                Event[]
+  id                        Int                 @id @default(autoincrement())
+  name                      String
+  email                     String              @unique
+  startDate                 DateTime
+  vacationDaysPerYear       Int                 @default(28)
+  holidayDaysPerYear        Int                 @default(14)
+  archived                  Boolean             @default(false)
+  archivedAt                DateTime?
+  createdAt                 DateTime            @default(now())
+  updatedAt                 DateTime            @updatedAt
+  events                    Event[]
+
+  // Telegram bot integration
+  telegramUserId            BigInt?             @unique
+  arrivalWindowStart        String              @default("10:00")
+  arrivalWindowEnd          String              @default("11:00")
+  workHoursPerDay           Int                 @default(8)
+  halfDayOnFridays          Boolean             @default(false)
+  workHoursOnFriday         Int                 @default(8)
+  recurringHomeOfficeDays   Int[]               @default([])
+
+  attendanceCheckIns        AttendanceCheckIn[]
 }
 
 model Event {
@@ -68,4 +80,51 @@ enum EventType {
   START_WORKING
   PROBATION_FINISHED
   LAST_DAY
+}
+
+model AttendanceCheckIn {
+  id                   Int       @id @default(autoincrement())
+  employeeId           Int
+  employee             Employee  @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  date                 DateTime  @db.Date
+  askedArrivalAt       DateTime?
+  confirmedArrivalAt   DateTime?
+  expectedArrivalAt    DateTime?  // If they said "in 15 min"
+  actualArrivalTime    String?    // "10:35"
+  askedDepartureAt     DateTime?
+  confirmedDepartureAt DateTime?
+  actualDepartureTime  String?    // "18:35"
+  status               AttendanceStatus @default(WAITING_ARRIVAL)
+  createdAt            DateTime  @default(now())
+  updatedAt            DateTime  @updatedAt
+
+  @@unique([employeeId, date])
+  @@index([employeeId])
+  @@index([date])
+}
+
+enum AttendanceStatus {
+  WAITING_ARRIVAL
+  WAITING_ARRIVAL_REMINDER
+  ARRIVED
+  WAITING_DEPARTURE
+  LEFT
+  MISSED
+  HOME_OFFICE
+  VACATION
+  SICK
+  HOLIDAY
+}
+
+model BotSettings {
+  id                    Int      @id @default(autoincrement())
+  telegramBotToken      String?
+  botEnabled            Boolean  @default(false)
+  timezoneOffset        Int      @default(3)  // GMT+3
+  morningReportTime     String   @default("09:00")
+  endOfDayReportTime    String   @default("19:00")
+  missedCheckInTime     String   @default("12:00")
+  updatedAt             DateTime @updatedAt
+  updatedBy             Int?
+  updatedByUser         User?    @relation(fields: [updatedBy], references: [id], onDelete: SetNull)
 }

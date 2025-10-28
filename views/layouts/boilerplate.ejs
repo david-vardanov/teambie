@@ -38,6 +38,15 @@
                     </ul>
                 </li>
 
+                <% if (isAdmin) { %>
+                    <li class="nav-dropdown">
+                        <a href="#" class="nav-dropdown-toggle">Settings ▾</a>
+                        <ul class="nav-dropdown-menu">
+                            <li><a href="/config/bot">🤖 Telegram Bot</a></li>
+                        </ul>
+                    </li>
+                <% } %>
+
                 <% if (currentUser) { %>
                     <li class="user-info">
                         <span><%= currentUser.name %></span>

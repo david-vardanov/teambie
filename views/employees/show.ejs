@@ -13,6 +13,41 @@
     </div>
 </div>
 
+<div class="card">
+    <div class="card-body">
+        <h2>Telegram Bot Settings</h2>
+        <% if (employee.telegramUserId) { %>
+            <p><strong>Status:</strong> <span class="badge badge-success">✅ Connected</span></p>
+            <p><strong>Telegram ID:</strong> <%= employee.telegramUserId %></p>
+        <% } else { %>
+            <p><strong>Status:</strong> <span class="badge badge-secondary">❌ Not Connected</span></p>
+            <p style="color: #666; font-size: 14px;">Employee needs to start a chat with the bot and link their account.</p>
+        <% } %>
+
+        <hr style="margin: 15px 0;">
+
+        <p><strong>Work Schedule:</strong></p>
+        <ul style="margin-left: 20px;">
+            <li>Arrival Window: <%= employee.arrivalWindowStart %> - <%= employee.arrivalWindowEnd %></li>
+            <li>Work Hours: <%= employee.workHoursPerDay %> hours/day</li>
+            <% if (employee.halfDayOnFridays) { %>
+                <li>Fridays: <%= employee.workHoursOnFriday %> hours (Half Day)</li>
+            <% } else { %>
+                <li>Fridays: <%= employee.workHoursPerDay %> hours (Full Day)</li>
+            <% } %>
+            <% if (employee.recurringHomeOfficeDays && employee.recurringHomeOfficeDays.length > 0) { %>
+                <li>Recurring Home Office:
+                    <%
+                        const dayNames = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+                        const homeOfficeDays = employee.recurringHomeOfficeDays.map(d => dayNames[d]).join(', ');
+                    %>
+                    <%= homeOfficeDays %>
+                </li>
+            <% } %>
+        </ul>
+    </div>
+</div>
+
 <div class="vacation-stats card">
     <div class="card-body">
         <h2>Vacation Summary (<%= new Date().getFullYear() %>)</h2>
