@@ -58,7 +58,7 @@ function configureBot(bot) {
   bot.command('weekreport', adminCommands.weekReport);
   bot.command('broadcast', adminCommands.broadcast);
   bot.command('admins', adminCommands.admins);
-  bot.command('holiday', adminCommands.holiday);
+  bot.command('globalholiday', adminCommands.holiday);
 
   // Handle text messages (for email linking, time responses, etc.)
   bot.on('text', async (ctx) => {
@@ -218,11 +218,16 @@ function configureBot(bot) {
         await ctx.reply(
           `✅ Account linked successfully!\n\n` +
           `Welcome, ${employee.name}! 👋\n\n` +
-          `Available commands:\n` +
-          `/balance - View your vacation balance\n` +
-          `/homeoffice - Request home office for tomorrow\n` +
+          `🎯 Quick Start:\n` +
+          `/checkin - Check in when you arrive\n` +
+          `/checkout - Check out when you leave\n` +
+          `/balance - View your vacation balance\n\n` +
+          `📅 Request Time Off:\n` +
+          `/homeoffice - Request home office\n` +
           `/vacation - Request vacation days\n` +
-          `/sick - Report sick day for tomorrow`
+          `/sick - Report sick day\n` +
+          `/dayoff - Request a single day off\n\n` +
+          `Type /help to see all available commands.`
         );
       } else {
         await ctx.reply(

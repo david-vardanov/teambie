@@ -188,11 +188,10 @@ async function handleCallback(ctx, prisma) {
       await notifyAdmins(
         ctx.telegram,
         prisma,
-        `📝 New vacation request:\n\n` +
+        `📝 New Vacation Request\n\n` +
         `👤 ${employee.name}\n` +
         `📅 ${formatDate(startDate)} - ${formatDate(endDate)}\n` +
-        `Days: ${days}\n\n` +
-        `Use /pending to review.`,
+        `Days: ${days}`,
         {
           reply_markup: {
             inline_keyboard: [[

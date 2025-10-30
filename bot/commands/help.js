@@ -39,7 +39,8 @@ module.exports = async (ctx) => {
     helpMessage += `/vacation start [end] - Request vacation\n`;
     helpMessage += `   Example: /vacation 2025-12-20 (single day)\n`;
     helpMessage += `   Example: /vacation 2025-12-20 2025-12-25\n\n`;
-    helpMessage += `/sick - Report sick day for tomorrow\n\n`;
+    helpMessage += `/sick - Report sick day for tomorrow\n`;
+    helpMessage += `/dayoff - Request a single day off\n\n`;
     helpMessage += `/help - Show this help message\n`;
 
     // Admin commands (only show if user is admin)
@@ -50,6 +51,7 @@ module.exports = async (ctx) => {
       helpMessage += `/weekreport - View weekly statistics\n`;
       helpMessage += `/broadcast - Send announcement to all employees\n`;
       helpMessage += `/admins - View list of system admins\n`;
+      helpMessage += `/globalholiday YYYY-MM-DD Name - Create global holiday\n`;
     }
 
     helpMessage += `\n💡 Tip: All leave requests require admin approval.`;

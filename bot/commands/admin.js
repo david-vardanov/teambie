@@ -355,9 +355,9 @@ async function admins(ctx) {
 }
 
 /**
- * /holiday command - Create global holiday (Admin only)
- * Usage: /holiday YYYY-MM-DD Holiday Name
- * Example: /holiday 2025-12-25 Christmas Day
+ * /globalholiday command - Create global holiday (Admin only)
+ * Usage: /globalholiday YYYY-MM-DD Holiday Name
+ * Example: /globalholiday 2025-12-25 Christmas Day
  */
 async function holiday(ctx) {
   const telegramUserId = BigInt(ctx.from.id);
@@ -369,14 +369,14 @@ async function holiday(ctx) {
       return;
     }
 
-    const text = ctx.message.text.replace('/holiday', '').trim();
+    const text = ctx.message.text.replace('/globalholiday', '').trim();
 
     if (!text) {
       await ctx.reply(
         '📅 Create Global Holiday\n\n' +
-        'Usage: /holiday YYYY-MM-DD Holiday Name\n\n' +
+        'Usage: /globalholiday YYYY-MM-DD Holiday Name\n\n' +
         'Example:\n' +
-        '/holiday 2025-12-25 Christmas Day'
+        '/globalholiday 2025-12-25 Christmas Day'
       );
       return;
     }
@@ -384,7 +384,7 @@ async function holiday(ctx) {
     // Parse input: first word is date, rest is holiday name
     const parts = text.split(' ');
     if (parts.length < 2) {
-      await ctx.reply('⚠️ Please provide both date and holiday name.\n\nExample: /holiday 2025-12-25 Christmas Day');
+      await ctx.reply('⚠️ Please provide both date and holiday name.\n\nExample: /globalholiday 2025-12-25 Christmas Day');
       return;
     }
 

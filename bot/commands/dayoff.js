@@ -126,34 +126,25 @@ async function handleCallback(ctx, prisma) {
         return;
       }
 
-      // Ask for reason (optional)
+      // Simple confirmation
       await ctx.answerCbQuery();
       await ctx.editMessageText(
-        `Request day off on ${formatDate(date)}?\n\n` +
-        `You can provide a reason (optional) by replying to this message, or confirm without reason.`,
+        `Request day off on ${formatDate(date)}?`,
         {
           reply_markup: {
             inline_keyboard: [[
-              { text: '✅ Confirm (no reason)', callback_data: `dayoff_confirm_${dateStr}_` },
+              { text: '✅ Confirm', callback_data: `dayoff_confirm_${dateStr}` },
               { text: '❌ Cancel', callback_data: 'dayoff_cancel' }
             ]]
           }
         }
       );
 
-      // Store date in session for potential reason input
-      if (ctx.session) {
-        ctx.session.dayOffDate = dateStr;
-      }
-
       return;
     }
 
     if (data.startsWith('dayoff_confirm_')) {
-      const parts = data.replace('dayoff_confirm_', '').split('_');
-      const dateStr = parts[0];
-      const reason = parts.slice(1).join('_') || 'Day off request';
-
+      const dateStr = data.replace('dayoff_confirm_', '');
       const date = new Date(dateStr);
 
       // Create day off event (defaults to PAID, admin will decide)
@@ -163,7 +154,7 @@ async function handleCallback(ctx, prisma) {
           type: 'DAY_OFF_PAID', // Default, admin will change if needed
           startDate: date,
           endDate: date,
-          notes: reason,
+          notes: 'Day off request',
           moderated: false
         }
       });
@@ -171,22 +162,44 @@ async function handleCallback(ctx, prisma) {
       await ctx.answerCbQuery();
       await ctx.editMessageText(
         `✅ Day Off Request Submitted!\n\n` +
-        `📅 Date: ${formatDate(date)}\n` +
-        `📝 Reason: ${reason}\n\n` +
+        `📅 Date: ${formatDate(date)}\n\n` +
         `Your request is pending admin approval.\n` +
         `You'll be notified once it's reviewed.`
       );
 
-      // Notify admins
-      await notifyAdmins(
-        ctx.telegram,
-        prisma,
-        `📅 New Day Off Request\n\n` +
-        `👤 ${employee.name}\n` +
-        `📅 Date: ${formatDate(date)}\n` +
-        `📝 Reason: ${reason}\n\n` +
-        `Use /pending to review and approve as paid/unpaid.`
-      );
+      // Notify admins with inline approval buttons
+      const adminUsers = await prisma.user.findMany({
+        where: { role: 'ADMIN' }
+      });
+
+      for (const adminUser of adminUsers) {
+        try {
+          // Find the employee record linked to this admin user
+          const adminEmployee = await prisma.employee.findUnique({
+            where: { email: adminUser.email }
+          });
+
+          if (adminEmployee && adminEmployee.telegramUserId) {
+            await ctx.telegram.sendMessage(
+              adminEmployee.telegramUserId.toString(),
+              `📅 New Day Off Request\n\n` +
+              `👤 ${employee.name}\n` +
+              `📅 Date: ${formatDate(date)}`,
+              {
+                reply_markup: {
+                  inline_keyboard: [[
+                    { text: '✅ Paid', callback_data: `moderate_approve_paid_${event.id}` },
+                    { text: '💵 Unpaid', callback_data: `moderate_approve_unpaid_${event.id}` },
+                    { text: '❌ Reject', callback_data: `moderate_reject_${event.id}` }
+                  ]]
+                }
+              }
+            );
+          }
+        } catch (error) {
+          console.error(`Failed to notify admin ${adminUser.name}:`, error);
+        }
+      }
 
       console.log(`Day off request created for ${employee.name} on ${dateStr}`);
     }

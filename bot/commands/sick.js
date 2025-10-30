@@ -95,10 +95,9 @@ async function handleCallback(ctx, prisma) {
       await notifyAdmins(
         ctx.telegram,
         prisma,
-        `📝 New sick day report:\n\n` +
+        `🤒 New Sick Day Report\n\n` +
         `👤 ${employee.name}\n` +
-        `📅 ${formatDate(date)}\n\n` +
-        `Use /pending to review.`,
+        `📅 ${formatDate(date)}`,
         {
           reply_markup: {
             inline_keyboard: [[
