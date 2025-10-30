@@ -260,6 +260,49 @@ async function notifyAdmins(bot, prisma, message, extra = {}) {
   }
 }
 
+/**
+ * Send message to all employees
+ */
+async function notifyAllEmployees(bot, prisma, message, extra = {}) {
+  try {
+    const employees = await prisma.employee.findMany({
+      where: {
+        archived: false,
+        telegramUserId: { not: null }
+      }
+    });
+
+    console.log(`Notifying ${employees.length} employee(s)`);
+
+    if (employees.length === 0) {
+      console.warn('No employees with Telegram found to notify!');
+      return;
+    }
+
+    let successCount = 0;
+    let failCount = 0;
+
+    for (const employee of employees) {
+      try {
+        // bot might be ctx.telegram or bot, handle both
+        const telegram = bot.telegram || bot;
+        await telegram.sendMessage(employee.telegramUserId.toString(), message, extra);
+        console.log(`✅ Notified ${employee.name}`);
+        successCount++;
+      } catch (error) {
+        console.error(`❌ Failed to notify ${employee.name}:`, error.message);
+        failCount++;
+      }
+    }
+
+    console.log(`📊 Notification summary: ${successCount} succeeded, ${failCount} failed`);
+    return { success: successCount, failed: failCount };
+  } catch (error) {
+    console.error('❌ Error in notifyAllEmployees:', error);
+    return { success: 0, failed: 0, error: error.message };
+  }
+}
+
 module.exports = {
   getCurrentDateTime,
   getCurrentDate,
@@ -281,5 +324,6 @@ module.exports = {
   getEmployeeByTelegramId,
   isAdmin,
   getAdminTelegramIds,
-  notifyAdmins
+  notifyAdmins,
+  notifyAllEmployees
 };

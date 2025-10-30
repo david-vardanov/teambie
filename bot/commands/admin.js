@@ -1,4 +1,4 @@
-const { isAdmin, getCurrentDate, formatDate, getEmployeeByTelegramId } = require('../utils/helpers');
+const { isAdmin, getCurrentDate, formatDate, getEmployeeByTelegramId, notifyAllEmployees } = require('../utils/helpers');
 
 /**
  * /teamstatus command - Show current team presence (Admin only)
@@ -140,14 +140,32 @@ async function pending(ctx) {
         ? ` - ${formatDate(event.endDate)}`
         : '';
 
+      let inlineKeyboard;
+
+      // For day off requests, show paid/unpaid options
+      if (event.type === 'DAY_OFF_PAID' || event.type === 'DAY_OFF_UNPAID') {
+        inlineKeyboard = [[
+          { text: '✅ Paid', callback_data: `moderate_approve_paid_${event.id}` },
+          { text: '💵 Unpaid', callback_data: `moderate_approve_unpaid_${event.id}` },
+          { text: '❌ Reject', callback_data: `moderate_reject_${event.id}` }
+        ]];
+      } else {
+        // For other events, show standard approve/reject
+        inlineKeyboard = [[
+          { text: '✅ Approve', callback_data: `moderate_approve_${event.id}` },
+          { text: '❌ Reject', callback_data: `moderate_reject_${event.id}` }
+        ]];
+      }
+
+      const displayType = event.type === 'DAY_OFF_PAID' || event.type === 'DAY_OFF_UNPAID'
+        ? 'Day Off Request'
+        : event.type.replace('_', ' ');
+
       await ctx.reply(
-        `${event.employee.name} - ${event.type.replace('_', ' ')}\n${dateStr}${endStr}`,
+        `${event.employee.name} - ${displayType}\n${dateStr}${endStr}${event.notes ? `\n📝 ${event.notes}` : ''}`,
         {
           reply_markup: {
-            inline_keyboard: [[
-              { text: '✅ Approve', callback_data: `moderate_approve_${event.id}` },
-              { text: '❌ Reject', callback_data: `moderate_reject_${event.id}` }
-            ]]
+            inline_keyboard: inlineKeyboard
           }
         }
       );
@@ -336,10 +354,117 @@ async function admins(ctx) {
   }
 }
 
+/**
+ * /holiday command - Create global holiday (Admin only)
+ * Usage: /holiday YYYY-MM-DD Holiday Name
+ * Example: /holiday 2025-12-25 Christmas Day
+ */
+async function holiday(ctx) {
+  const telegramUserId = BigInt(ctx.from.id);
+  const prisma = ctx.prisma || require('@prisma/client').prisma;
+
+  try {
+    if (!await isAdmin(prisma, telegramUserId)) {
+      await ctx.reply('This command is only available to admins.');
+      return;
+    }
+
+    const text = ctx.message.text.replace('/holiday', '').trim();
+
+    if (!text) {
+      await ctx.reply(
+        '📅 Create Global Holiday\n\n' +
+        'Usage: /holiday YYYY-MM-DD Holiday Name\n\n' +
+        'Example:\n' +
+        '/holiday 2025-12-25 Christmas Day'
+      );
+      return;
+    }
+
+    // Parse input: first word is date, rest is holiday name
+    const parts = text.split(' ');
+    if (parts.length < 2) {
+      await ctx.reply('⚠️ Please provide both date and holiday name.\n\nExample: /holiday 2025-12-25 Christmas Day');
+      return;
+    }
+
+    const dateStr = parts[0];
+    const holidayName = parts.slice(1).join(' ');
+
+    // Validate date format
+    const dateRegex = /^\d{4}-\d{2}-\d{2}$/;
+    if (!dateRegex.test(dateStr)) {
+      await ctx.reply('⚠️ Invalid date format. Please use YYYY-MM-DD\n\nExample: 2025-12-25');
+      return;
+    }
+
+    const holidayDate = new Date(dateStr);
+    if (isNaN(holidayDate.getTime())) {
+      await ctx.reply('⚠️ Invalid date. Please check the date and try again.');
+      return;
+    }
+
+    // Check if holiday already exists for this date
+    const existingHoliday = await prisma.event.findFirst({
+      where: {
+        isGlobal: true,
+        type: 'HOLIDAY',
+        startDate: holidayDate
+      }
+    });
+
+    if (existingHoliday) {
+      await ctx.reply(`⚠️ A global holiday already exists for ${formatDate(holidayDate)}:\n"${existingHoliday.notes}"`);
+      return;
+    }
+
+    // Create the global holiday
+    const event = await prisma.event.create({
+      data: {
+        type: 'HOLIDAY',
+        startDate: holidayDate,
+        endDate: holidayDate,
+        notes: holidayName,
+        isGlobal: true,
+        moderated: true,
+        employeeId: null
+      }
+    });
+
+    console.log(`✅ Global holiday created: ${holidayName} on ${dateStr}`);
+
+    // Confirm to admin
+    await ctx.reply(
+      `✅ Global Holiday Created!\n\n` +
+      `🎉 ${holidayName}\n` +
+      `📅 ${formatDate(holidayDate)}\n\n` +
+      `Notifying all employees...`
+    );
+
+    // Notify all employees
+    const notificationMessage =
+      `🎉 New Holiday Announced!\n\n` +
+      `📅 Date: ${formatDate(holidayDate)}\n` +
+      `🎊 ${holidayName}\n\n` +
+      `This is a company-wide holiday.\n` +
+      `Enjoy your day off! 🌟`;
+
+    const result = await notifyAllEmployees(ctx.telegram, prisma, notificationMessage);
+
+    // Report back to admin
+    await ctx.reply(`📊 Notification sent to ${result.success} employee(s).${result.failed > 0 ? ` Failed: ${result.failed}` : ''}`);
+
+  } catch (error) {
+    console.error('Holiday command error:', error);
+    await ctx.reply('An error occurred while creating the holiday. Please try again.');
+  }
+}
+
 module.exports = {
   teamStatus,
   pending,
   weekReport,
   broadcast,
-  admins
+  admins,
+  holiday
 };

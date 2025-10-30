@@ -48,6 +48,9 @@ async function startSchedulers(bot, prisma) {
   // Follow up on pending arrivals every minute
   cron.schedule('* * * * *', () => followUpPendingArrivals(bot, prisma));
 
+  // Auto-checkout employees who haven't responded
+  cron.schedule('* * * * *', () => autoCheckoutOverdue(bot, prisma));
+
   // Morning report for admins (configurable)
   cron.schedule(`${morningTime[1]} ${morningTime[0]} * * *`, () => sendMorningReport(bot, prisma));
 
@@ -173,6 +176,10 @@ async function followUpPendingArrivals(bot, prisma) {
     const todayDate = new Date(today);
     const currentTime = getCurrentTime();
 
+    // Load settings for reminder interval
+    const settings = await prisma.botSettings.findFirst();
+    const reminderIntervalMinutes = settings?.arrivalReminderInterval || 5;
+
     // Get check-ins waiting for follow-up
     const checkIns = await prisma.attendanceCheckIn.findMany({
       where: {
@@ -191,6 +198,14 @@ async function followUpPendingArrivals(bot, prisma) {
       // Skip if exempt from tracking
       if (employee.exemptFromTracking) {
         continue;
+      }
+
+      // Check if enough time has passed since last reminder
+      if (checkIn.lastArrivalReminderAt) {
+        const minutesSinceLastReminder = (now - new Date(checkIn.lastArrivalReminderAt)) / (1000 * 60);
+        if (minutesSinceLastReminder < reminderIntervalMinutes) {
+          continue; // Skip - not enough time passed
+        }
       }
 
       // Check if this is a late arrival (expected time > window end)
@@ -241,6 +256,12 @@ async function followUpPendingArrivals(bot, prisma) {
 
       // Still ask if they arrived
       await followUpArrival(bot, prisma, checkIn, employee);
+
+      // Update last reminder timestamp
+      await prisma.attendanceCheckIn.update({
+        where: { id: checkIn.id },
+        data: { lastArrivalReminderAt: now }
+      });
     }
   } catch (error) {
     console.error('Follow up pending arrivals error:', error);
@@ -585,6 +606,77 @@ async function checkWorkAnniversaries(bot, prisma) {
     }
   } catch (error) {
     console.error('Work anniversary check error:', error);
+  }
+}
+
+/**
+ * Auto-checkout employees who haven't responded after buffer time
+ */
+async function autoCheckoutOverdue(bot, prisma) {
+  try {
+    const now = new Date();
+    const today = getCurrentDate();
+    const todayDate = new Date(today);
+
+    // Load settings
+    const settings = await prisma.botSettings.findFirst();
+    const bufferMinutes = settings?.autoCheckoutBufferMinutes || 30;
+
+    // Get employees who are still ARRIVED or WAITING_DEPARTURE_REMINDER
+    const checkIns = await prisma.attendanceCheckIn.findMany({
+      where: {
+        date: todayDate,
+        status: {
+          in: ['ARRIVED', 'WAITING_DEPARTURE_REMINDER']
+        },
+        expectedDepartureAt: { not: null }
+      },
+      include: { employee: true }
+    });
+
+    for (const checkIn of checkIns) {
+      const expectedDeparture = new Date(checkIn.expectedDepartureAt);
+      const bufferTime = new Date(expectedDeparture.getTime() + bufferMinutes * 60 * 1000);
+
+      // Check if buffer time has passed
+      if (now >= bufferTime) {
+        const employee = checkIn.employee;
+
+        // Auto-checkout at expected departure time (not current time)
+        const departureTimeStr = `${expectedDeparture.getHours()}:${String(expectedDeparture.getMinutes()).padStart(2, '0')}`;
+
+        console.log(`🤖 Auto-checking out ${employee.name} at ${departureTimeStr} (no response after ${bufferMinutes} min)`);
+
+        // Update check-in
+        await prisma.attendanceCheckIn.update({
+          where: { id: checkIn.id },
+          data: {
+            status: 'LEFT',
+            confirmedDepartureAt: now,
+            actualDepartureTime: departureTimeStr,
+            autoCheckedOut: true
+          }
+        });
+
+        // Notify employee
+        if (employee.telegramUserId) {
+          try {
+            await bot.telegram.sendMessage(
+              employee.telegramUserId.toString(),
+              `✅ Auto Checkout\n\n` +
+              `You've been automatically checked out at ${departureTimeStr}.\n\n` +
+              `If you left earlier or later, please contact an admin to adjust your record.`
+            );
+          } catch (error) {
+            console.error(`Failed to notify ${employee.name}:`, error);
+          }
+        }
+
+        console.log(`✅ Auto-checkout successful for ${employee.name}`);
+      }
+    }
+  } catch (error) {
+    console.error('Auto-checkout overdue error:', error);
   }
 }
 

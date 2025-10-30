@@ -365,7 +365,7 @@ router.get('/global-holidays', requireAdmin, async (req, res) => {
 router.post('/global-holidays', requireAdmin, async (req, res) => {
   try {
     const { startDate, endDate, notes } = req.body;
-    await prisma.event.create({
+    const event = await prisma.event.create({
       data: {
         type: 'HOLIDAY',
         startDate: new Date(startDate),
@@ -376,6 +376,37 @@ router.post('/global-holidays', requireAdmin, async (req, res) => {
         createdById: req.session.userId
       }
     });
+
+    // Notify all employees via Telegram bot (if bot is running)
+    try {
+      const { bot } = require('../bot');
+      if (bot) {
+        const { notifyAllEmployees } = require('../bot/utils/helpers');
+        const { formatDate } = require('../bot/utils/helpers');
+
+        const holidayStart = new Date(startDate);
+        const holidayEnd = endDate ? new Date(endDate) : null;
+
+        let dateText = formatDate(holidayStart);
+        if (holidayEnd && holidayStart.getTime() !== holidayEnd.getTime()) {
+          dateText += ` - ${formatDate(holidayEnd)}`;
+        }
+
+        const notificationMessage =
+          `🎉 New Holiday Announced!\n\n` +
+          `📅 Date: ${dateText}\n` +
+          `🎊 ${notes}\n\n` +
+          `This is a company-wide holiday.\n` +
+          `Enjoy your day off! 🌟`;
+
+        await notifyAllEmployees(bot, prisma, notificationMessage);
+        console.log('✅ Global holiday notification sent to all employees');
+      }
+    } catch (botError) {
+      console.error('Failed to send holiday notification:', botError);
+      // Don't fail the request if notification fails
+    }
+
     res.redirect('/events/global-holidays');
   } catch (error) {
     console.error(error);

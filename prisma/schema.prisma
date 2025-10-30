@@ -91,10 +91,13 @@ model AttendanceCheckIn {
   askedArrivalAt       DateTime?
   confirmedArrivalAt   DateTime?
   expectedArrivalAt    DateTime?  // If they said "in 15 min"
+  lastArrivalReminderAt DateTime? // Track when last arrival reminder was sent
   actualArrivalTime    String?    // "10:35"
   askedDepartureAt     DateTime?
   confirmedDepartureAt DateTime?
+  expectedDepartureAt  DateTime?  // Expected time to leave (arrival + work hours)
   actualDepartureTime  String?    // "18:35"
+  autoCheckedOut       Boolean   @default(false) // If auto-checked out
   status               AttendanceStatus @default(WAITING_ARRIVAL)
   createdAt            DateTime  @default(now())
   updatedAt            DateTime  @updatedAt
@@ -109,6 +112,7 @@ enum AttendanceStatus {
   WAITING_ARRIVAL_REMINDER
   ARRIVED
   WAITING_DEPARTURE
+  WAITING_DEPARTURE_REMINDER
   LEFT
   MISSED
   HOME_OFFICE
@@ -118,14 +122,16 @@ enum AttendanceStatus {
 }
 
 model BotSettings {
-  id                    Int      @id @default(autoincrement())
-  telegramBotToken      String?
-  botEnabled            Boolean  @default(false)
-  timezoneOffset        Int      @default(3)  // GMT+3
-  morningReportTime     String   @default("09:00")
-  endOfDayReportTime    String   @default("19:00")
-  missedCheckInTime     String   @default("12:00")
-  updatedAt             DateTime @updatedAt
-  updatedBy             Int?
-  updatedByUser         User?    @relation(fields: [updatedBy], references: [id], onDelete: SetNull)
+  id                        Int      @id @default(autoincrement())
+  telegramBotToken          String?
+  botEnabled                Boolean  @default(false)
+  timezoneOffset            Int      @default(3)  // GMT+3
+  morningReportTime         String   @default("09:00")
+  endOfDayReportTime        String   @default("19:00")
+  missedCheckInTime         String   @default("12:00")
+  arrivalReminderInterval   Int      @default(5) // Minutes between arrival reminders
+  autoCheckoutBufferMinutes Int      @default(30) // Auto-checkout after X min of no response
+  updatedAt                 DateTime @updatedAt
+  updatedBy                 Int?
+  updatedByUser             User?    @relation(fields: [updatedBy], references: [id], onDelete: SetNull)
 }

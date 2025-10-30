@@ -14,6 +14,7 @@ const checkoutCommand = require('./commands/checkout');
 const homeofficeCommand = require('./commands/homeoffice');
 const vacationCommand = require('./commands/vacation');
 const sickCommand = require('./commands/sick');
+const dayoffCommand = require('./commands/dayoff');
 const helpCommand = require('./commands/help');
 const adminCommands = require('./commands/admin');
 
@@ -48,6 +49,7 @@ function configureBot(bot) {
   bot.command('homeoffice', homeofficeCommand);
   bot.command('vacation', vacationCommand);
   bot.command('sick', sickCommand);
+  bot.command('dayoff', dayoffCommand.dayoff);
   bot.command('help', helpCommand);
 
   // Admin commands
@@ -56,6 +58,7 @@ function configureBot(bot) {
   bot.command('weekreport', adminCommands.weekReport);
   bot.command('broadcast', adminCommands.broadcast);
   bot.command('admins', adminCommands.admins);
+  bot.command('holiday', adminCommands.holiday);
 
   // Handle text messages (for email linking, time responses, etc.)
   bot.on('text', async (ctx) => {
@@ -246,6 +249,8 @@ function configureBot(bot) {
       await vacationCommand.handleCallback(ctx, prisma);
     } else if (data.startsWith('sick_')) {
       await sickCommand.handleCallback(ctx, prisma);
+    } else if (data.startsWith('dayoff_')) {
+      await dayoffCommand.handleCallback(ctx, prisma);
     }
   });
 

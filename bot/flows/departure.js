@@ -32,16 +32,22 @@ async function askDeparture(bot, prisma, employee) {
       return; // Only ask if they actually arrived
     }
 
+    const workHours = getWorkHoursForToday(employee);
+    const expectedDeparture = calculateDepartureTime(checkIn.actualArrivalTime, workHours);
+
+    // Calculate expected departure as datetime for auto-checkout
+    const [hours, minutes] = expectedDeparture.split(':').map(Number);
+    const expectedDepartureDate = new Date(todayDate);
+    expectedDepartureDate.setHours(hours, minutes, 0, 0);
+
     await prisma.attendanceCheckIn.update({
       where: { id: checkIn.id },
       data: {
         status: 'WAITING_DEPARTURE',
-        askedDepartureAt: new Date()
+        askedDepartureAt: new Date(),
+        expectedDepartureAt: expectedDepartureDate
       }
     });
-
-    const workHours = getWorkHoursForToday(employee);
-    const expectedDeparture = calculateDepartureTime(checkIn.actualArrivalTime, workHours);
 
     await bot.telegram.sendMessage(
       employee.telegramUserId.toString(),
@@ -97,13 +103,13 @@ async function handleCallback(ctx, prisma) {
     if (data === 'departure_still_here') {
       await prisma.attendanceCheckIn.update({
         where: { id: checkIn.id },
-        data: { status: 'ARRIVED' }
+        data: { status: 'WAITING_DEPARTURE_REMINDER' }
       });
 
       await ctx.answerCbQuery();
       await ctx.editMessageText(
         `Great! Thanks for confirming. ✅\n\n` +
-        `Reply when you're leaving or I'll check again later.`
+        `You'll be automatically checked out if you don't respond. Use /checkout when leaving.`
       );
 
     } else if (data === 'departure_left') {
