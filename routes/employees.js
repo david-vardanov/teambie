@@ -2,6 +2,7 @@ const express = require('express');
 const router = express.Router();
 const { requireAdmin } = require('../middleware/auth');
 const prisma = require('../lib/prisma');
+const { calculateVacationBalance } = require('../utils/vacationHelper');
 
 // List all active employees
 router.get('/', async (req, res) => {
@@ -65,7 +66,10 @@ router.post('/', async (req, res) => {
       workHoursPerDay,
       halfDayOnFridays,
       workHoursOnFriday,
-      recurringHomeOfficeDays
+      recurringHomeOfficeDays,
+      createUserAccount,
+      password,
+      userRole
     } = req.body;
 
     // Handle recurringHomeOfficeDays - can be array or single value
@@ -120,6 +124,28 @@ router.post('/', async (req, res) => {
       }
     });
 
+    // Create user account if checkbox was checked and password provided
+    if (createUserAccount === 'on' && password) {
+      // Check if user already exists
+      const existingUser = await prisma.user.findUnique({
+        where: { email: email }
+      });
+
+      if (!existingUser) {
+        const bcrypt = require('bcryptjs');
+        const hashedPassword = await bcrypt.hash(password, 10);
+
+        await prisma.user.create({
+          data: {
+            email: email,
+            name: name,
+            password: hashedPassword,
+            role: userRole || 'EMPLOYEE'
+          }
+        });
+      }
+    }
+
     res.redirect('/employees');
   } catch (error) {
     console.error(error);
@@ -145,24 +171,22 @@ router.get('/:id', async (req, res) => {
       return res.status(404).send('Employee not found');
     }
 
-    // Calculate vacation days taken this year
-    const currentYear = new Date().getFullYear();
-    const vacationEvents = employee.events.filter(event => {
-      const eventYear = new Date(event.startDate).getFullYear();
-      return event.type === 'VACATION' && eventYear === currentYear;
+    // Find linked user account by email
+    const linkedUser = await prisma.user.findUnique({
+      where: { email: employee.email }
     });
 
-    let vacationDaysTaken = 0;
-    vacationEvents.forEach(event => {
-      const start = new Date(event.startDate);
-      const end = event.endDate ? new Date(event.endDate) : start;
-      const days = Math.ceil((end - start) / (1000 * 60 * 60 * 24)) + 1;
-      vacationDaysTaken += days;
+    // Calculate vacation balance based on work anniversary
+    const vacationBalance = calculateVacationBalance(employee);
+
+    res.render('employees/show', {
+      employee,
+      linkedUser,
+      vacationDaysTaken: vacationBalance.daysTaken,
+      vacationDaysLeft: vacationBalance.daysLeft,
+      vacationPeriodStart: vacationBalance.periodStart,
+      vacationPeriodEnd: vacationBalance.periodEnd
     });
-
-    const vacationDaysLeft = employee.vacationDaysPerYear - vacationDaysTaken;
-
-    res.render('employees/show', { employee, vacationDaysTaken, vacationDaysLeft });
   } catch (error) {
     console.error(error);
     res.status(500).send('Server Error');
@@ -178,7 +202,13 @@ router.get('/:id/edit', async (req, res) => {
     if (!employee) {
       return res.status(404).send('Employee not found');
     }
-    res.render('employees/edit', { employee });
+
+    // Find linked user account by email
+    const linkedUser = await prisma.user.findUnique({
+      where: { email: employee.email }
+    });
+
+    res.render('employees/edit', { employee, linkedUser });
   } catch (error) {
     console.error(error);
     res.status(500).send('Server Error');
@@ -200,7 +230,8 @@ router.put('/:id', async (req, res) => {
       workHoursPerDay,
       halfDayOnFridays,
       workHoursOnFriday,
-      recurringHomeOfficeDays
+      recurringHomeOfficeDays,
+      role
     } = req.body;
 
     // Handle recurringHomeOfficeDays - can be array or single value
@@ -213,7 +244,8 @@ router.put('/:id', async (req, res) => {
       }
     }
 
-    await prisma.employee.update({
+    // Update employee
+    const employee = await prisma.employee.update({
       where: { id: parseInt(req.params.id) },
       data: {
         name,
@@ -230,6 +262,30 @@ router.put('/:id', async (req, res) => {
         recurringHomeOfficeDays: homeOfficeDays
       }
     });
+
+    // Update user role if role was provided and user exists
+    if (role) {
+      const user = await prisma.user.findUnique({
+        where: { email: employee.email }
+      });
+
+      if (user) {
+        // Prevent user from demoting themselves
+        if (user.id === req.session.userId && role === 'EMPLOYEE' && user.role === 'ADMIN') {
+          req.session.message = {
+            type: 'error',
+            text: 'You cannot demote yourself from admin'
+          };
+          return res.redirect(`/employees/${req.params.id}/edit`);
+        }
+
+        await prisma.user.update({
+          where: { id: user.id },
+          data: { role: role }
+        });
+      }
+    }
+
     res.redirect(`/employees/${req.params.id}`);
   } catch (error) {
     console.error(error);
@@ -293,6 +349,142 @@ router.post('/:id/unarchive', requireAdmin, async (req, res) => {
       }
     });
     res.redirect('/employees/archived');
+  } catch (error) {
+    console.error(error);
+    res.status(500).send('Server Error');
+  }
+});
+
+// Create user account for employee (admin only)
+router.post('/:id/create-user', requireAdmin, async (req, res) => {
+  try {
+    const { password, role } = req.body;
+    const employee = await prisma.employee.findUnique({
+      where: { id: parseInt(req.params.id) }
+    });
+
+    if (!employee) {
+      return res.status(404).send('Employee not found');
+    }
+
+    // Check if user already exists
+    const existingUser = await prisma.user.findUnique({
+      where: { email: employee.email }
+    });
+
+    if (existingUser) {
+      req.session.message = {
+        type: 'error',
+        text: 'User account already exists for this email'
+      };
+      return res.redirect(`/employees/${req.params.id}`);
+    }
+
+    // Create user account
+    const bcrypt = require('bcryptjs');
+    const hashedPassword = await bcrypt.hash(password, 10);
+
+    await prisma.user.create({
+      data: {
+        email: employee.email,
+        name: employee.name,
+        password: hashedPassword,
+        role: role || 'EMPLOYEE'
+      }
+    });
+
+    req.session.message = {
+      type: 'success',
+      text: 'User account created successfully'
+    };
+    res.redirect(`/employees/${req.params.id}`);
+  } catch (error) {
+    console.error(error);
+    res.status(500).send('Server Error');
+  }
+});
+
+// Promote employee to admin (admin only)
+router.post('/:id/promote', requireAdmin, async (req, res) => {
+  try {
+    const employee = await prisma.employee.findUnique({
+      where: { id: parseInt(req.params.id) }
+    });
+
+    if (!employee) {
+      return res.status(404).send('Employee not found');
+    }
+
+    const user = await prisma.user.findUnique({
+      where: { email: employee.email }
+    });
+
+    if (!user) {
+      req.session.message = {
+        type: 'error',
+        text: 'No user account found. Create one first.'
+      };
+      return res.redirect(`/employees/${req.params.id}`);
+    }
+
+    await prisma.user.update({
+      where: { id: user.id },
+      data: { role: 'ADMIN' }
+    });
+
+    req.session.message = {
+      type: 'success',
+      text: `${employee.name} promoted to admin successfully`
+    };
+    res.redirect(`/employees/${req.params.id}`);
+  } catch (error) {
+    console.error(error);
+    res.status(500).send('Server Error');
+  }
+});
+
+// Demote employee from admin (admin only)
+router.post('/:id/demote', requireAdmin, async (req, res) => {
+  try {
+    const employee = await prisma.employee.findUnique({
+      where: { id: parseInt(req.params.id) }
+    });
+
+    if (!employee) {
+      return res.status(404).send('Employee not found');
+    }
+
+    const user = await prisma.user.findUnique({
+      where: { email: employee.email }
+    });
+
+    if (!user) {
+      req.session.message = {
+        type: 'error',
+        text: 'No user account found'
+      };
+      return res.redirect(`/employees/${req.params.id}`);
+    }
+
+    // Prevent demoting yourself
+    if (user.id === req.session.userId) {
+      req.session.message = {
+        type: 'error',
+        text: 'You cannot demote yourself'
+      };
+      return res.redirect(`/employees/${req.params.id}`);
+    }
+
+    await prisma.user.update({
+      where: { id: user.id },
+      data: { role: 'EMPLOYEE' }
+    });
+
+    req.session.message = {
+      type: 'success',
+      text: `${employee.name} demoted to employee successfully`
+    };
+    res.redirect(`/employees/${req.params.id}`);
   } catch (error) {
     console.error(error);
     res.status(500).send('Server Error');

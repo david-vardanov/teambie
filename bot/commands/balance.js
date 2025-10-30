@@ -1,4 +1,5 @@
-const { getEmployeeByTelegramId, getCurrentDate } = require('../utils/helpers');
+const { getEmployeeByTelegramId, getCurrentDate, formatDate } = require('../utils/helpers');
+const { calculateVacationBalance, calculateHolidayBalance } = require('../../utils/vacationHelper');
 
 /**
  * /balance command - Show vacation and holiday balance
@@ -15,54 +16,37 @@ module.exports = async (ctx) => {
       return;
     }
 
-    // Calculate vacation days taken this year
-    const yearStart = new Date(new Date().getFullYear(), 0, 1);
-    const vacationEvents = await prisma.event.findMany({
-      where: {
-        employeeId: employee.id,
-        type: 'VACATION',
-        moderated: true,
-        startDate: { gte: yearStart }
+    // Fetch employee with events for balance calculation
+    const employeeWithEvents = await prisma.employee.findUnique({
+      where: { id: employee.id },
+      include: {
+        events: {
+          where: {
+            moderated: true
+          }
+        }
       }
     });
 
-    let vacationDaysTaken = 0;
-    for (const event of vacationEvents) {
-      const start = new Date(event.startDate);
-      const end = event.endDate ? new Date(event.endDate) : start;
-      const days = Math.ceil((end - start) / (1000 * 60 * 60 * 24)) + 1;
-      vacationDaysTaken += days;
-    }
+    // Calculate balances based on work anniversary
+    const vacationBalance = calculateVacationBalance(employeeWithEvents);
+    const holidayBalance = calculateHolidayBalance(employeeWithEvents);
 
-    // Calculate holiday days taken this year
-    const holidayEvents = await prisma.event.findMany({
-      where: {
-        employeeId: employee.id,
-        type: 'HOLIDAY',
-        moderated: true,
-        startDate: { gte: yearStart }
-      }
-    });
-
-    let holidayDaysTaken = 0;
-    for (const event of holidayEvents) {
-      const start = new Date(event.startDate);
-      const end = event.endDate ? new Date(event.endDate) : start;
-      const days = Math.ceil((end - start) / (1000 * 60 * 60 * 24)) + 1;
-      holidayDaysTaken += days;
-    }
-
-    const vacationRemaining = employee.vacationDaysPerYear - vacationDaysTaken;
-    const holidayRemaining = employee.holidayDaysPerYear - holidayDaysTaken;
+    // Format period dates
+    const periodStart = vacationBalance.periodStart.toISOString().split('T')[0];
+    const periodEnd = vacationBalance.periodEnd.toISOString().split('T')[0];
 
     await ctx.reply(
       `📊 Your Balance\n\n` +
       `🏖 Vacation Days:\n` +
-      `   Used: ${vacationDaysTaken} / ${employee.vacationDaysPerYear}\n` +
-      `   Remaining: ${vacationRemaining}\n\n` +
+      `   Used: ${vacationBalance.daysTaken} / ${employeeWithEvents.vacationDaysPerYear}\n` +
+      `   Remaining: ${vacationBalance.daysLeft}\n\n` +
       `🎉 Holiday Days:\n` +
-      `   Used: ${holidayDaysTaken} / ${employee.holidayDaysPerYear}\n` +
-      `   Remaining: ${holidayRemaining}`
+      `   Used: ${holidayBalance.daysTaken} / ${employeeWithEvents.holidayDaysPerYear}\n` +
+      `   Remaining: ${holidayBalance.daysLeft}\n\n` +
+      `📅 Current Period:\n` +
+      `   ${periodStart} to ${periodEnd}\n` +
+      `   (Based on your work anniversary)`
     );
   } catch (error) {
     console.error('Balance command error:', error);

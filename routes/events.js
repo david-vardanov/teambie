@@ -2,6 +2,7 @@ const express = require('express');
 const router = express.Router();
 const { requireAdmin } = require('../middleware/auth');
 const prisma = require('../lib/prisma');
+const { calculateVacationBalance, calculateHolidayBalance, getEventsInCurrentPeriod, calculateEventDays } = require('../utils/vacationHelper');
 
 // Helper function to get month calendar data
 function getMonthData(year, month) {
@@ -37,16 +38,16 @@ router.get('/calendar', async (req, res) => {
   try {
     const today = new Date();
     const year = req.query.year ? parseInt(req.query.year) : today.getFullYear();
-    const month = req.query.month ? parseInt(req.query.month) : today.getMonth();
 
-    const { firstDay, lastDay, daysInMonth, startingDayOfWeek } = getMonthData(year, month);
+    // Get all events for the entire year
+    const yearStart = new Date(year, 0, 1);
+    const yearEnd = new Date(year, 11, 31);
 
-    // Get all events for this month
     const events = await prisma.event.findMany({
       where: {
         startDate: {
-          gte: firstDay,
-          lte: lastDay
+          gte: yearStart,
+          lte: yearEnd
         }
       },
       include: {
@@ -56,6 +57,19 @@ router.get('/calendar', async (req, res) => {
         startDate: 'asc'
       }
     });
+
+    // Generate data for all 12 months
+    const monthsData = [];
+    for (let m = 0; m < 12; m++) {
+      const { firstDay, lastDay, daysInMonth, startingDayOfWeek } = getMonthData(year, m);
+      monthsData.push({
+        month: m,
+        firstDay,
+        lastDay,
+        daysInMonth,
+        startingDayOfWeek
+      });
+    }
 
     // Get all employees for the add event form and stats
     const employees = await prisma.employee.findMany({
@@ -90,8 +104,11 @@ router.get('/calendar', async (req, res) => {
     });
 
     const employeeStats = employees.map(emp => {
-      let vacationDays = 0;
-      let holidayDays = 0;
+      // Calculate vacation and holiday based on work anniversary
+      const vacationBalance = calculateVacationBalance(emp);
+      const holidayBalance = calculateHolidayBalance(emp);
+
+      // Calculate other event types for current year
       let sickDays = 0;
       let homeOfficeDays = 0;
       let lateDays = 0;
@@ -101,17 +118,9 @@ router.get('/calendar', async (req, res) => {
       emp.events.forEach(event => {
         if (new Date(event.startDate).getFullYear() !== currentYear) return;
 
-        const start = new Date(event.startDate);
-        const end = event.endDate ? new Date(event.endDate) : start;
-        const days = Math.ceil((end - start) / (1000 * 60 * 60 * 24)) + 1;
+        const days = calculateEventDays(event.startDate, event.endDate);
 
         switch (event.type) {
-          case 'VACATION':
-            vacationDays += days;
-            break;
-          case 'HOLIDAY':
-            holidayDays += days;
-            break;
           case 'SICK_DAY':
             sickDays += days;
             break;
@@ -131,17 +140,18 @@ router.get('/calendar', async (req, res) => {
       });
 
       // Add global holidays to employee's holiday count
-      const totalHolidayDays = holidayDays + globalHolidayDays;
+      const totalHolidayDays = holidayBalance.daysTaken + globalHolidayDays;
+      const totalHolidayRemaining = emp.holidayDaysPerYear - totalHolidayDays;
 
       return {
         id: emp.id,
         name: emp.name,
-        vacationDays,
+        vacationDays: vacationBalance.daysTaken,
         vacationAllowance: emp.vacationDaysPerYear,
-        vacationRemaining: emp.vacationDaysPerYear - vacationDays,
+        vacationRemaining: vacationBalance.daysLeft,
         holidayDays: totalHolidayDays,
         holidayAllowance: emp.holidayDaysPerYear,
-        holidayRemaining: emp.holidayDaysPerYear - totalHolidayDays,
+        holidayRemaining: totalHolidayRemaining,
         sickDays,
         homeOfficeDays,
         lateDays,
@@ -211,10 +221,8 @@ router.get('/calendar', async (req, res) => {
 
     res.render('events/calendar', {
       year,
-      month,
-      monthName: monthNames[month],
-      daysInMonth,
-      startingDayOfWeek,
+      monthsData,
+      monthNames,
       events,
       employees,
       today,

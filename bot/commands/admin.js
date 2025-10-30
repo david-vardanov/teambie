@@ -282,9 +282,64 @@ async function broadcast(ctx) {
   }
 }
 
+/**
+ * /admins command - Show list of all admins (Admin only)
+ */
+async function admins(ctx) {
+  const telegramUserId = BigInt(ctx.from.id);
+  const prisma = ctx.prisma || require('@prisma/client').prisma;
+
+  try {
+    if (!await isAdmin(prisma, telegramUserId)) {
+      await ctx.reply('This command is only available to admins.');
+      return;
+    }
+
+    // Get all users with ADMIN role
+    const adminUsers = await prisma.user.findMany({
+      where: { role: 'ADMIN' },
+      orderBy: { name: 'asc' }
+    });
+
+    if (adminUsers.length === 0) {
+      await ctx.reply('No admins found in the system.');
+      return;
+    }
+
+    let message = `👑 System Admins (${adminUsers.length})\n\n`;
+
+    for (const admin of adminUsers) {
+      // Try to find linked employee
+      const employee = await prisma.employee.findFirst({
+        where: { email: admin.email }
+      });
+
+      message += `• ${admin.name}\n`;
+      message += `  Email: ${admin.email}\n`;
+
+      if (employee) {
+        if (employee.telegramUserId) {
+          message += `  Telegram: ✅ Connected\n`;
+        } else {
+          message += `  Telegram: ❌ Not connected\n`;
+        }
+      } else {
+        message += `  Employee Profile: ❌ Not linked\n`;
+      }
+      message += '\n';
+    }
+
+    await ctx.reply(message);
+  } catch (error) {
+    console.error('Admins command error:', error);
+    await ctx.reply('An error occurred. Please try again.');
+  }
+}
+
 module.exports = {
   teamStatus,
   pending,
   weekReport,
-  broadcast
+  broadcast,
+  admins
 };

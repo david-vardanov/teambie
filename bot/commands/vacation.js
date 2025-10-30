@@ -1,4 +1,5 @@
 const { getEmployeeByTelegramId, getTomorrowDate, formatDate, getDateInDays, daysBetween, notifyAdmins } = require('../utils/helpers');
+const { calculateVacationBalance } = require('../../utils/vacationHelper');
 
 /**
  * /vacation command - Request vacation days
@@ -67,26 +68,22 @@ module.exports = async (ctx) => {
     // Calculate days
     const days = daysBetween(startDate, endDate);
 
-    // Check balance
-    const yearStart = new Date(new Date().getFullYear(), 0, 1);
-    const vacationEvents = await prisma.event.findMany({
-      where: {
-        employeeId: employee.id,
-        type: 'VACATION',
-        moderated: true,
-        startDate: { gte: yearStart }
+    // Check balance based on work anniversary
+    // Fetch employee with events for balance calculation
+    const employeeWithEvents = await prisma.employee.findUnique({
+      where: { id: employee.id },
+      include: {
+        events: {
+          where: {
+            type: 'VACATION',
+            moderated: true
+          }
+        }
       }
     });
 
-    let vacationDaysTaken = 0;
-    for (const event of vacationEvents) {
-      const s = new Date(event.startDate);
-      const e = event.endDate ? new Date(event.endDate) : s;
-      const d = Math.ceil((e - s) / (1000 * 60 * 60 * 24)) + 1;
-      vacationDaysTaken += d;
-    }
-
-    const remaining = employee.vacationDaysPerYear - vacationDaysTaken;
+    const vacationBalance = calculateVacationBalance(employeeWithEvents);
+    const remaining = vacationBalance.daysLeft;
 
     if (days > remaining) {
       await ctx.reply(

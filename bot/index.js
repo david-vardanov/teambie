@@ -55,6 +55,7 @@ function configureBot(bot) {
   bot.command('pending', adminCommands.pending);
   bot.command('weekreport', adminCommands.weekReport);
   bot.command('broadcast', adminCommands.broadcast);
+  bot.command('admins', adminCommands.admins);
 
   // Handle text messages (for email linking, time responses, etc.)
   bot.on('text', async (ctx) => {

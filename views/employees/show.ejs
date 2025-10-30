@@ -5,6 +5,13 @@
     <a href="/employees/<%= employee.id %>/edit" class="btn btn-primary">Edit</a>
 </div>
 
+<% if (locals.message) { %>
+    <div class="alert alert-<%= message.type %>" style="margin-bottom: 20px;">
+        <%= message.text %>
+    </div>
+    <% delete locals.message; %>
+<% } %>
+
 <div class="card">
     <div class="card-body">
         <p><strong>Email:</strong> <%= employee.email %></p>
@@ -12,6 +19,66 @@
         <p><strong>Vacation Days Per Year:</strong> <%= employee.vacationDaysPerYear %></p>
     </div>
 </div>
+
+<% if (isAdmin) { %>
+<div class="card">
+    <div class="card-body">
+        <h2>Account & Permissions</h2>
+        <% if (linkedUser) { %>
+            <p><strong>User Account:</strong> <span class="badge badge-success">Active</span></p>
+            <p><strong>Role:</strong>
+                <% if (linkedUser.role === 'ADMIN') { %>
+                    <span class="badge badge-admin">👑 Admin</span>
+                <% } else { %>
+                    <span class="badge badge-employee">👤 Employee</span>
+                <% } %>
+            </p>
+            <div style="margin-top: 15px;">
+                <% if (linkedUser.role === 'ADMIN') { %>
+                    <form action="/employees/<%= employee.id %>/demote" method="POST" style="display: inline;">
+                        <button type="submit" class="btn btn-secondary" onclick="return confirm('Demote <%= employee.name %> from admin to employee?')">
+                            Demote to Employee
+                        </button>
+                    </form>
+                <% } else { %>
+                    <form action="/employees/<%= employee.id %>/promote" method="POST" style="display: inline;">
+                        <button type="submit" class="btn btn-primary" onclick="return confirm('Promote <%= employee.name %> to admin?')">
+                            Promote to Admin
+                        </button>
+                    </form>
+                <% } %>
+            </div>
+            <div style="margin-top: 10px; padding: 10px; background-color: #f8f9fa; border-radius: 5px; font-size: 13px;">
+                <strong>Admin Permissions:</strong> View all employees, approve/reject events, manage settings, broadcast messages
+            </div>
+        <% } else { %>
+            <p><strong>User Account:</strong> <span class="badge badge-secondary">Not Created</span></p>
+            <p style="color: #666; font-size: 14px; margin-top: 10px;">
+                This employee doesn't have a login account yet. Create one to enable system access.
+            </p>
+            <div style="margin-top: 15px; padding: 15px; background-color: #f8f9fa; border-radius: 5px;">
+                <h4 style="margin-top: 0;">Create User Account</h4>
+                <form action="/employees/<%= employee.id %>/create-user" method="POST">
+                    <div style="margin-bottom: 15px;">
+                        <label style="display: block; margin-bottom: 5px;"><strong>Password:</strong></label>
+                        <input type="password" name="password" required minlength="6"
+                               placeholder="Enter password (min 6 characters)"
+                               style="width: 100%; padding: 8px; border: 1px solid #ccc; border-radius: 4px;">
+                    </div>
+                    <div style="margin-bottom: 15px;">
+                        <label style="display: block; margin-bottom: 5px;"><strong>Role:</strong></label>
+                        <select name="role" style="width: 100%; padding: 8px; border: 1px solid #ccc; border-radius: 4px;">
+                            <option value="EMPLOYEE">Employee</option>
+                            <option value="ADMIN">Admin</option>
+                        </select>
+                    </div>
+                    <button type="submit" class="btn btn-primary">Create Account</button>
+                </form>
+            </div>
+        <% } %>
+    </div>
+</div>
+<% } %>
 
 <div class="card">
     <div class="card-body">
@@ -99,3 +166,34 @@
         </form>
     <% } %>
 </div>
+
+<style>
+.alert {
+    padding: 15px;
+    border-radius: 5px;
+}
+.alert-success {
+    background-color: #d4edda;
+    color: #155724;
+    border: 1px solid #c3e6cb;
+}
+.alert-error {
+    background-color: #f8d7da;
+    color: #721c24;
+    border: 1px solid #f5c6cb;
+}
+.badge {
+    padding: 4px 8px;
+    border-radius: 4px;
+    font-size: 12px;
+    font-weight: bold;
+}
+.badge-admin {
+    background-color: #ffc107;
+    color: #000;
+}
+.badge-employee {
+    background-color: #6c757d;
+    color: #fff;
+}
+</style>

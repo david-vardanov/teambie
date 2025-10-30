@@ -49,6 +49,7 @@ module.exports = async (ctx) => {
       helpMessage += `/pending - View and moderate pending events\n`;
       helpMessage += `/weekreport - View weekly statistics\n`;
       helpMessage += `/broadcast - Send announcement to all employees\n`;
+      helpMessage += `/admins - View list of system admins\n`;
     }
 
     helpMessage += `\n💡 Tip: All leave requests require admin approval.`;

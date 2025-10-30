@@ -787,3 +787,520 @@ h2 {
     font-size: 0.75rem;
     font-weight: 600;
 }
+
+/* Calendar Table Styles */
+.calendar-table-container {
+    background: white;
+    border-radius: 8px;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    overflow: hidden;
+}
+
+.calendar-legend {
+    padding: 1rem 1.5rem;
+    border-bottom: 1px solid #e0e0e0;
+    background-color: #f8f9fa;
+}
+
+.legend-horizontal {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 1rem;
+}
+
+.table-scroll-wrapper {
+    overflow-x: auto;
+    overflow-y: auto;
+    max-height: calc(100vh - 250px);
+}
+
+.calendar-table {
+    width: 100%;
+    border-collapse: separate;
+    border-spacing: 0;
+    font-size: 0.875rem;
+}
+
+.calendar-table thead th {
+    background-color: #9db4c9;
+    color: #333;
+    font-weight: 600;
+    text-align: center;
+    border: 1px solid #d0d0d0;
+    padding: 0.5rem;
+    position: sticky;
+    top: 0;
+    z-index: 10;
+}
+
+.calendar-table thead th.sticky-col {
+    position: sticky;
+    background-color: #9db4c9;
+    z-index: 20;
+}
+
+.calendar-table thead th.first-col {
+    left: 0;
+    min-width: 200px;
+    text-align: left;
+}
+
+.calendar-table thead th.second-col {
+    left: 200px;
+    min-width: 100px;
+}
+
+.calendar-table .month-header {
+    background-color: #5a7a99 !important;
+    color: white;
+    font-size: 0.9rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    border-left: 2px solid #34495e !important;
+}
+
+.calendar-table .month-header:first-of-type {
+    border-left: 1px solid #d0d0d0 !important;
+}
+
+.calendar-table .day-header {
+    min-width: 35px;
+    max-width: 35px;
+    padding: 0.15rem;
+    vertical-align: middle;
+    font-size: 0.7rem;
+}
+
+.calendar-table .day-header .day-number {
+    font-size: 0.75rem;
+    font-weight: bold;
+    margin-bottom: 0.1rem;
+}
+
+.calendar-table .day-header .day-name {
+    font-size: 0.6rem;
+    font-weight: normal;
+}
+
+.calendar-table .day-header.weekend {
+    background-color: #f9a7a7;
+    color: #fff;
+}
+
+.calendar-table .day-header.today {
+    background-color: #ffd966;
+    color: #333;
+}
+
+.calendar-table tbody td {
+    border: 1px solid #d0d0d0;
+    padding: 0.5rem;
+    text-align: center;
+    vertical-align: middle;
+    background-color: #fff;
+}
+
+.calendar-table tbody td.sticky-col {
+    position: sticky;
+    background-color: #fff;
+    z-index: 5;
+    border-right: 2px solid #999;
+}
+
+.calendar-table tbody td.first-col {
+    left: 0;
+    min-width: 200px;
+    text-align: left;
+    font-weight: 500;
+    background-color: #fff9e6;
+}
+
+.calendar-table tbody td.second-col {
+    left: 200px;
+    min-width: 100px;
+    font-weight: 600;
+}
+
+.calendar-table tbody td.employee-name a {
+    color: #2c3e50;
+    text-decoration: none;
+}
+
+.calendar-table tbody td.employee-name a:hover {
+    color: #3498db;
+    text-decoration: underline;
+}
+
+.calendar-table tbody td.day-cell {
+    min-width: 35px;
+    max-width: 35px;
+    width: 35px;
+    height: 30px;
+    padding: 0;
+}
+
+.calendar-table tbody td.day-cell.weekend {
+    background-color: #ffe6e6;
+}
+
+.calendar-table tbody td.day-cell.today {
+    background-color: #fff9e6;
+    border: 2px solid #ffd966;
+}
+
+.calendar-table tbody td.day-cell.has-event {
+    background-color: #e8f4f8;
+}
+
+/* Visual separator between months - target first day of each month */
+.calendar-table .day-header[data-date$="-0-1"],
+.calendar-table tbody td.day-cell:nth-child(32),
+.calendar-table tbody td.day-cell:nth-child(63),
+.calendar-table tbody td.day-cell:nth-child(94),
+.calendar-table tbody td.day-cell:nth-child(124),
+.calendar-table tbody td.day-cell:nth-child(155),
+.calendar-table tbody td.day-cell:nth-child(185),
+.calendar-table tbody td.day-cell:nth-child(216),
+.calendar-table tbody td.day-cell:nth-child(247),
+.calendar-table tbody td.day-cell:nth-child(277),
+.calendar-table tbody td.day-cell:nth-child(308),
+.calendar-table tbody td.day-cell:nth-child(338) {
+    border-left: 2px solid #34495e !important;
+}
+
+.calendar-table .event-indicators-wrapper {
+    display: flex;
+    width: 100%;
+    height: 100%;
+    min-height: 28px;
+}
+
+.calendar-table .event-indicator {
+    display: block;
+    width: 100%;
+    height: 100%;
+    min-height: 28px;
+    border-radius: 2px;
+    cursor: pointer;
+    transition: opacity 0.2s, transform 0.05s;
+    flex: 1;
+}
+
+.calendar-table .event-indicator:not(:last-child) {
+    border-right: 1px solid white;
+}
+
+.calendar-table .event-indicators-wrapper:hover .event-indicator {
+    opacity: 0.85;
+}
+
+.calendar-table tbody td.day-cell.has-event {
+    padding: 0;
+}
+
+/* Apply badge colors to event indicators */
+.calendar-table .event-indicator.badge-vacation {
+    background-color: #3498db;
+}
+
+.calendar-table .event-indicator.badge-holiday {
+    background-color: #e67e22;
+}
+
+.calendar-table .event-indicator.badge-sick-day {
+    background-color: #e74c3c;
+}
+
+.calendar-table .event-indicator.badge-home-office {
+    background-color: #16a085;
+}
+
+.calendar-table .event-indicator.badge-late-left-early {
+    background-color: #f39c12;
+}
+
+.calendar-table .event-indicator.badge-day-off-paid {
+    background-color: #27ae60;
+}
+
+.calendar-table .event-indicator.badge-day-off-unpaid {
+    background-color: #95a5a6;
+}
+
+.calendar-table .event-indicator.badge-start-working {
+    background-color: #9b59b6;
+}
+
+.calendar-table .event-indicator.badge-probation-finished {
+    background-color: #1abc9c;
+}
+
+.calendar-table .event-indicator.badge-last-day {
+    background-color: #34495e;
+}
+
+/* Employee Stats Section Below Calendar */
+.calendar-stats-section {
+    padding: 1.5rem;
+    border-top: 2px solid #e0e0e0;
+    background-color: #f8f9fa;
+}
+
+.calendar-stats-section h3 {
+    margin: 0 0 1rem 0;
+    color: #2c3e50;
+    font-size: 1.25rem;
+}
+
+.stats-table-wrapper {
+    overflow-x: auto;
+}
+
+.stats-summary-table {
+    width: 100%;
+    border-collapse: collapse;
+    background: white;
+    border-radius: 8px;
+    overflow: hidden;
+}
+
+.stats-summary-table thead th {
+    background-color: #34495e;
+    color: white;
+    padding: 1rem 0.75rem;
+    text-align: center;
+    font-weight: 600;
+    font-size: 0.875rem;
+    border: 1px solid #2c3e50;
+}
+
+.stats-summary-table thead th:first-child {
+    text-align: left;
+}
+
+.stats-summary-table tbody td {
+    padding: 0.75rem;
+    text-align: center;
+    border: 1px solid #e0e0e0;
+    vertical-align: middle;
+}
+
+.stats-summary-table tbody td.employee-name-col {
+    text-align: left;
+    font-weight: 500;
+}
+
+.stats-summary-table tbody td.employee-name-col a {
+    color: #2c3e50;
+    text-decoration: none;
+}
+
+.stats-summary-table tbody td.employee-name-col a:hover {
+    color: #3498db;
+    text-decoration: underline;
+}
+
+.stats-summary-table tbody tr:hover {
+    background-color: #f8f9fa;
+}
+
+.stat-badge {
+    display: inline-block;
+    padding: 0.35rem 0.65rem;
+    font-size: 0.875rem;
+    font-weight: 600;
+    color: white;
+    border-radius: 4px;
+    min-width: 50px;
+}
+
+@media (max-width: 768px) {
+    .calendar-table thead th.first-col {
+        min-width: 150px;
+    }
+
+    .calendar-table tbody td.first-col {
+        min-width: 150px;
+    }
+
+    .calendar-table thead th.second-col {
+        left: 150px;
+        min-width: 80px;
+    }
+
+    .calendar-table tbody td.second-col {
+        left: 150px;
+        min-width: 80px;
+    }
+
+    .calendar-table .day-header {
+        min-width: 30px;
+        max-width: 30px;
+    }
+
+    .calendar-table tbody td.day-cell {
+        min-width: 30px;
+        max-width: 30px;
+        width: 30px;
+        height: 28px;
+    }
+
+    .calendar-table .event-indicator {
+        min-height: 26px;
+    }
+
+    .calendar-table .event-indicators-wrapper {
+        min-height: 26px;
+    }
+
+    .legend-horizontal {
+        flex-direction: column;
+        gap: 0.5rem;
+    }
+
+    .stats-summary-table {
+        font-size: 0.75rem;
+    }
+
+    .stats-summary-table thead th,
+    .stats-summary-table tbody td {
+        padding: 0.5rem 0.25rem;
+    }
+
+    .stat-badge {
+        font-size: 0.75rem;
+        padding: 0.25rem 0.5rem;
+        min-width: 40px;
+    }
+}
+
+/* Event Modal/Popover Styles */
+.event-modal-overlay {
+    display: none;
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background-color: rgba(0, 0, 0, 0.5);
+    z-index: 1000;
+    animation: fadeIn 0.2s ease-in;
+}
+
+.event-modal-overlay.active {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+}
+
+.event-modal {
+    background: white;
+    border-radius: 12px;
+    box-shadow: 0 10px 40px rgba(0, 0, 0, 0.3);
+    max-width: 500px;
+    width: 90%;
+    max-height: 80vh;
+    overflow-y: auto;
+    animation: slideUp 0.3s ease-out;
+}
+
+.event-modal-header {
+    padding: 1.5rem;
+    border-bottom: 1px solid #e0e0e0;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    background-color: #f8f9fa;
+    border-radius: 12px 12px 0 0;
+}
+
+.event-modal-header h3 {
+    margin: 0;
+    color: #2c3e50;
+    font-size: 1.5rem;
+}
+
+.event-modal-close {
+    background: none;
+    border: none;
+    font-size: 2rem;
+    color: #666;
+    cursor: pointer;
+    width: 40px;
+    height: 40px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 50%;
+    transition: background-color 0.2s;
+}
+
+.event-modal-close:hover {
+    background-color: #e0e0e0;
+}
+
+.event-modal-body {
+    padding: 1.5rem;
+}
+
+.event-modal-field {
+    margin-bottom: 1.25rem;
+}
+
+.event-modal-field:last-child {
+    margin-bottom: 0;
+}
+
+.event-modal-label {
+    font-weight: 600;
+    color: #666;
+    font-size: 0.875rem;
+    display: block;
+    margin-bottom: 0.5rem;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+.event-modal-value {
+    color: #2c3e50;
+    font-size: 1rem;
+}
+
+.event-modal-footer {
+    padding: 1rem 1.5rem;
+    border-top: 1px solid #e0e0e0;
+    display: flex;
+    justify-content: flex-end;
+    gap: 0.5rem;
+    background-color: #f8f9fa;
+    border-radius: 0 0 12px 12px;
+}
+
+.event-card {
+    margin-bottom: 0;
+}
+
+.event-card .btn-sm {
+    margin-top: 0.5rem;
+}
+
+@keyframes fadeIn {
+    from {
+        opacity: 0;
+    }
+    to {
+        opacity: 1;
+    }
+}
+
+@keyframes slideUp {
+    from {
+        transform: translateY(20px);
+        opacity: 0;
+    }
+    to {
+        transform: translateY(0);
+        opacity: 1;
+    }
+}

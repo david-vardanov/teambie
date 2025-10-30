@@ -14,6 +14,7 @@ const {
 } = require('../utils/helpers');
 const { askArrival, followUpArrival } = require('../flows/arrival');
 const { askDeparture } = require('../flows/departure');
+const { isWorkAnniversary, getYearsOfService } = require('../../utils/vacationHelper');
 
 /**
  * Start all schedulers
@@ -59,10 +60,14 @@ async function startSchedulers(bot, prisma) {
   // Check for missed check-ins (configurable)
   cron.schedule(`${missedCheckInTime[1]} ${missedCheckInTime[0]} * * *`, () => checkMissedCheckIns(bot, prisma));
 
+  // Check for work anniversaries daily at morning report time
+  cron.schedule(`${morningTime[1]} ${morningTime[0]} * * *`, () => checkWorkAnniversaries(bot, prisma));
+
   console.log('All schedulers started!');
   console.log(`- Morning report: ${settings.morningReportTime}`);
   console.log(`- End of day report: ${settings.endOfDayReportTime}`);
   console.log(`- Missed check-in alert: ${settings.missedCheckInTime}`);
+  console.log(`- Work anniversary check: ${settings.morningReportTime}`);
 }
 
 /**
@@ -530,6 +535,56 @@ async function sendWeeklyReport(bot, prisma) {
     await notifyAdmins(bot, prisma, message);
   } catch (error) {
     console.error('Weekly report error:', error);
+  }
+}
+
+/**
+ * Check for work anniversaries and send notifications
+ */
+async function checkWorkAnniversaries(bot, prisma) {
+  try {
+    // Get all active employees
+    const employees = await prisma.employee.findMany({
+      where: {
+        archived: false
+      }
+    });
+
+    for (const employee of employees) {
+      // Check if today is their work anniversary
+      if (isWorkAnniversary(employee.startDate)) {
+        const yearsOfService = getYearsOfService(employee.startDate);
+
+        // Send notification to the employee (if they have telegram connected)
+        if (employee.telegramUserId) {
+          try {
+            await bot.telegram.sendMessage(
+              employee.telegramUserId.toString(),
+              `🎉 Happy Work Anniversary!\n\n` +
+              `Today marks ${yearsOfService} year${yearsOfService !== 1 ? 's' : ''} with the company!\n\n` +
+              `🏖 Your vacation balance has been reset to ${employee.vacationDaysPerYear} days\n` +
+              `🎉 Your holiday balance has been reset to ${employee.holidayDaysPerYear} days\n\n` +
+              `Thank you for your dedication and hard work! 🌟\n\n` +
+              `Use /balance to see your updated balance.`
+            );
+          } catch (error) {
+            console.error(`Failed to send anniversary message to ${employee.name}:`, error);
+          }
+        }
+
+        // Notify admins about the anniversary
+        const adminMessage =
+          `🎂 Work Anniversary Alert\n\n` +
+          `${employee.name} celebrates ${yearsOfService} year${yearsOfService !== 1 ? 's' : ''} with the company today!\n\n` +
+          `Their vacation and holiday balances have been automatically reset.`;
+
+        await notifyAdmins(bot, prisma, adminMessage);
+
+        console.log(`Work anniversary notification sent for ${employee.name} (${yearsOfService} years)`);
+      }
+    }
+  } catch (error) {
+    console.error('Work anniversary check error:', error);
   }
 }
 

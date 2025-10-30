@@ -13,6 +13,49 @@
         <input type="email" name="email" id="email" value="<%= employee.email %>" required>
     </div>
 
+    <hr style="margin: 25px 0;">
+    <h3>User Account & Access</h3>
+
+    <% if (linkedUser) { %>
+    <div class="form-group">
+        <label for="role">User Role</label>
+        <select name="role" id="role">
+            <option value="EMPLOYEE" <%= linkedUser.role === 'EMPLOYEE' ? 'selected' : '' %>>Employee</option>
+            <option value="ADMIN" <%= linkedUser.role === 'ADMIN' ? 'selected' : '' %>>Admin</option>
+        </select>
+        <small style="color: #666;">Change user's system access level</small>
+    </div>
+    <div style="padding: 10px; background-color: #e8f4f8; border-radius: 5px; font-size: 13px; margin-bottom: 15px;">
+        <strong>✅ User Account Active</strong> - This employee can log into the system with role: <strong><%= linkedUser.role === 'ADMIN' ? '👑 Admin' : '👤 Employee' %></strong>
+    </div>
+    <% } else { %>
+    <div style="padding: 15px; background-color: #fff9e6; border-left: 4px solid #ffc107; border-radius: 5px; margin-bottom: 15px;">
+        <h4 style="margin-top: 0; color: #856404;">⚠️ No User Account</h4>
+        <p style="color: #856404; margin-bottom: 15px;">
+            This employee doesn't have login credentials yet. Create a user account below to enable system access.
+        </p>
+        <form action="/employees/<%= employee.id %>/create-user" method="POST" style="margin: 0;">
+            <div style="margin-bottom: 15px;">
+                <label style="display: block; margin-bottom: 5px; font-weight: 600;">Password:</label>
+                <input type="password" name="password" required minlength="6"
+                       placeholder="Enter password (min 6 characters)"
+                       style="width: 100%; padding: 8px; border: 1px solid #ccc; border-radius: 4px;">
+            </div>
+            <div style="margin-bottom: 15px;">
+                <label style="display: block; margin-bottom: 5px; font-weight: 600;">Role:</label>
+                <select name="role" style="width: 100%; padding: 8px; border: 1px solid #ccc; border-radius: 4px;">
+                    <option value="EMPLOYEE">Employee</option>
+                    <option value="ADMIN">Admin</option>
+                </select>
+                <small style="color: #666; display: block; margin-top: 5px;">
+                    Admin: Full access to all features | Employee: Limited access
+                </small>
+            </div>
+            <button type="submit" class="btn btn-primary">Create User Account</button>
+        </form>
+    </div>
+    <% } %>
+
     <div class="form-group">
         <label for="startDate">Start Date</label>
         <input type="date" name="startDate" id="startDate" value="<%= employee.startDate.toISOString().split('T')[0] %>" required>
