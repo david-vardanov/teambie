@@ -371,7 +371,7 @@ body {
 }
 
 .badge-vacation { background-color: #3498db; }
-.badge-holiday { background-color: #e67e22; }
+.badge-holiday { background-color: #9b59b6; }
 .badge-sick-day { background-color: #e74c3c; }
 .badge-home-office { background-color: #16a085; }
 .badge-late-left-early { background-color: #f39c12; }
@@ -1005,7 +1005,7 @@ h2 {
 }
 
 .calendar-table .event-indicator.badge-holiday {
-    background-color: #e67e22;
+    background-color: #9b59b6;
 }
 
 .calendar-table .event-indicator.badge-sick-day {
