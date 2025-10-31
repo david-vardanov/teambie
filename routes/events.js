@@ -33,15 +33,19 @@ router.get('/', requireAdmin, async (req, res) => {
   }
 });
 
-// Export calendar as CSV (admin only)
+// Export calendar as Excel with colors (admin only)
 router.get('/calendar/export', requireAdmin, async (req, res) => {
   try {
+    const ExcelJS = require('exceljs');
     const today = new Date();
     const year = req.query.year ? parseInt(req.query.year) : today.getFullYear();
 
-    // Get all employees with their events
+    // Get all employees with their events (excluding admins/exempt)
     const employees = await prisma.employee.findMany({
-      where: { archived: false },
+      where: {
+        archived: false,
+        exemptFromTracking: false
+      },
       include: {
         events: {
           where: {
@@ -77,33 +81,22 @@ router.get('/calendar/export', requireAdmin, async (req, res) => {
       }
     }
 
-    // Event type abbreviations
-    const eventAbbreviations = {
-      'VACATION': 'V',
-      'HOLIDAY': 'H',
-      'SICK_DAY': 'S',
-      'HOME_OFFICE': 'HO',
-      'LATE_LEFT_EARLY': 'L',
-      'DAY_OFF_PAID': 'DP',
-      'DAY_OFF_UNPAID': 'DU',
-      'START_WORKING': 'SW',
-      'PROBATION_FINISHED': 'PF',
-      'STOP_WORKING': 'END'
+    // Event type abbreviations and colors
+    const eventConfig = {
+      'VACATION': { abbr: 'V', color: 'FF3498DB', name: 'Vacation' },
+      'HOLIDAY': { abbr: 'H', color: 'FF9B59B6', name: 'Holiday' },
+      'SICK_DAY': { abbr: 'S', color: 'FFE74C3C', name: 'Sick Day' },
+      'HOME_OFFICE': { abbr: 'HO', color: 'FF16A085', name: 'Home Office' },
+      'LATE_LEFT_EARLY': { abbr: 'L', color: 'FFF39C12', name: 'Late/Left Early' },
+      'DAY_OFF_PAID': { abbr: 'DP', color: 'FF27AE60', name: 'Day Off Paid' },
+      'DAY_OFF_UNPAID': { abbr: 'DU', color: 'FF95A5A6', name: 'Day Off Unpaid' },
+      'START_WORKING': { abbr: 'SW', color: 'FF9B59B6', name: 'Start Working' },
+      'PROBATION_FINISHED': { abbr: 'PF', color: 'FF9B59B6', name: 'Probation Finished' },
+      'STOP_WORKING': { abbr: 'END', color: 'FF95A5A6', name: 'Stop Working' }
     };
 
-    // Build header row: Employee name + all dates
-    const headerRow = ['Employee'];
-    dates.forEach(date => {
-      const month = (date.getMonth() + 1).toString().padStart(2, '0');
-      const day = date.getDate().toString().padStart(2, '0');
-      headerRow.push(`${month}/${day}`);
-    });
-
-    const csvRows = [headerRow.join(',')];
-
     // Helper function to check if event occurs on a specific date
-    const getEventForDate = (events, date) => {
-      const dateStr = date.toDateString();
+    const getEventsForDate = (events, date) => {
       const matching = events.filter(event => {
         const start = new Date(event.startDate);
         start.setHours(0, 0, 0, 0);
@@ -113,15 +106,38 @@ router.get('/calendar/export', requireAdmin, async (req, res) => {
         checkDate.setHours(0, 0, 0, 0);
         return checkDate >= start && checkDate <= end;
       });
-
-      // If multiple events, join them with +
-      if (matching.length === 0) return '';
-      return matching.map(e => eventAbbreviations[e.type] || e.type.substring(0, 2)).join('+');
+      return matching;
     };
+
+    // Create workbook and worksheet
+    const workbook = new ExcelJS.Workbook();
+    const worksheet = workbook.addWorksheet(`Calendar ${year}`);
+
+    // Build header row
+    const headerRow = ['Employee'];
+    dates.forEach(date => {
+      const month = (date.getMonth() + 1).toString().padStart(2, '0');
+      const day = date.getDate().toString().padStart(2, '0');
+      headerRow.push(`${month}/${day}`);
+    });
+
+    const header = worksheet.addRow(headerRow);
+    header.font = { bold: true };
+    header.fill = {
+      type: 'pattern',
+      pattern: 'solid',
+      fgColor: { argb: 'FFE0E0E0' }
+    };
+
+    // Set column widths
+    worksheet.getColumn(1).width = 20; // Employee name column
+    for (let i = 2; i <= dates.length + 1; i++) {
+      worksheet.getColumn(i).width = 4; // Date columns
+    }
 
     // For each employee, create a row
     for (const emp of employees) {
-      const row = [`"${emp.name}"`];
+      const rowData = [emp.name];
 
       // Combine employee events with global holidays
       const allEvents = [...emp.events];
@@ -135,21 +151,71 @@ router.get('/calendar/export', requireAdmin, async (req, res) => {
         });
       });
 
-      // For each date, check if there's an event
+      // Store event info for each date to color cells
+      const dateEvents = [];
       dates.forEach(date => {
-        const eventLabel = getEventForDate(allEvents, date);
-        row.push(eventLabel);
+        const eventsOnDate = getEventsForDate(allEvents, date);
+        dateEvents.push(eventsOnDate);
+
+        // Add abbreviated text (for multiple events, join with +)
+        if (eventsOnDate.length === 0) {
+          rowData.push('');
+        } else {
+          const abbrs = eventsOnDate.map(e => eventConfig[e.type]?.abbr || e.type.substring(0, 2));
+          rowData.push(abbrs.join('+'));
+        }
       });
 
-      csvRows.push(row.join(','));
+      const row = worksheet.addRow(rowData);
+
+      // Apply colors to cells
+      dateEvents.forEach((eventsOnDate, idx) => {
+        if (eventsOnDate.length > 0) {
+          const cellIndex = idx + 2; // +2 because column 1 is employee name, and ExcelJS is 1-indexed
+          const cell = row.getCell(cellIndex);
+
+          // Use the color of the first event if multiple events
+          const eventType = eventsOnDate[0].type;
+          const config = eventConfig[eventType];
+
+          if (config) {
+            cell.fill = {
+              type: 'pattern',
+              pattern: 'solid',
+              fgColor: { argb: config.color }
+            };
+            cell.font = { color: { argb: 'FFFFFFFF' }, bold: true };
+            cell.alignment = { horizontal: 'center', vertical: 'middle' };
+          }
+        }
+      });
     }
 
-    const csv = csvRows.join('\n');
+    // Add legend worksheet
+    const legendSheet = workbook.addWorksheet('Legend');
+    legendSheet.addRow(['Event Type', 'Abbreviation', 'Color']);
+    legendSheet.getRow(1).font = { bold: true };
+
+    Object.entries(eventConfig).forEach(([type, config]) => {
+      const row = legendSheet.addRow([config.name, config.abbr, '']);
+      row.getCell(3).fill = {
+        type: 'pattern',
+        pattern: 'solid',
+        fgColor: { argb: config.color }
+      };
+    });
+
+    legendSheet.getColumn(1).width = 20;
+    legendSheet.getColumn(2).width = 15;
+    legendSheet.getColumn(3).width = 15;
+
+    // Generate Excel file
+    const buffer = await workbook.xlsx.writeBuffer();
 
     // Set headers for download
-    res.setHeader('Content-Type', 'text/csv');
-    res.setHeader('Content-Disposition', `attachment; filename="calendar-${year}.csv"`);
-    res.send(csv);
+    res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+    res.setHeader('Content-Disposition', `attachment; filename="calendar-${year}.xlsx"`);
+    res.send(buffer);
 
   } catch (error) {
     console.error(error);
@@ -195,8 +261,12 @@ router.get('/calendar', async (req, res) => {
       });
     }
 
-    // Get all employees for the add event form and stats
+    // Get all employees for the add event form and stats (excluding admins/exempt)
     const employees = await prisma.employee.findMany({
+      where: {
+        archived: false,
+        exemptFromTracking: false
+      },
       include: {
         events: true
       },
@@ -278,9 +348,9 @@ router.get('/calendar', async (req, res) => {
         holidayRemaining: totalHolidayRemaining,
         sickDays,
         homeOfficeDays,
-        lateDays,
-        paidDaysOff,
-        unpaidDaysOff
+        lateLeftEarlyDays: lateDays,
+        paidDayOffDays: paidDaysOff,
+        unpaidDayOffDays: unpaidDaysOff
       };
     });
 
