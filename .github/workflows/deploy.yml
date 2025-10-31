@@ -13,38 +13,19 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v3
 
-      - name: Setup SSH Key
-        run: |
-          mkdir -p ~/.ssh
-          echo "${{ secrets.SSH_PRIVATE_KEY }}" | base64 -d > ~/.ssh/deploy_key
-          chmod 600 ~/.ssh/deploy_key
-          ssh-keyscan -H ${{ secrets.SSH_HOST }} >> ~/.ssh/known_hosts
-
       - name: Deploy to Digital Ocean
-        run: |
-          ssh -i ~/.ssh/deploy_key ${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }} << 'ENDSSH'
+        uses: appleboy/ssh-action@v1.0.0
+        with:
+          host: ${{ secrets.SSH_HOST }}
+          username: ${{ secrets.SSH_USER }}
+          key: ${{ secrets.SSH_PRIVATE_KEY }}
+          script: |
             cd ~/teambie
-
-            # Stash any local changes
             git stash
-
-            # Pull latest code
             git pull origin main
-
-            # Install dependencies
             npm install
-
-            # Generate Prisma Client
             npx prisma generate
-
-            # Run database migrations
             npx prisma migrate deploy
-
-            # Restart PM2
             pm2 restart server || pm2 start server.js --name server
-
-            # Show status
             pm2 status
-
             echo "✅ Deployment completed successfully!"
-          ENDSSH
