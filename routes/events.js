@@ -33,6 +33,94 @@ router.get('/', requireAdmin, async (req, res) => {
   }
 });
 
+// Export calendar as CSV (admin only)
+router.get('/calendar/export', requireAdmin, async (req, res) => {
+  try {
+    const today = new Date();
+    const year = req.query.year ? parseInt(req.query.year) : today.getFullYear();
+
+    // Get all events for the entire year
+    const yearStart = new Date(year, 0, 1);
+    const yearEnd = new Date(year, 11, 31);
+
+    const events = await prisma.event.findMany({
+      where: {
+        startDate: {
+          gte: yearStart,
+          lte: yearEnd
+        }
+      },
+      include: {
+        employee: true,
+        createdBy: true
+      },
+      orderBy: {
+        startDate: 'asc'
+      }
+    });
+
+    // Generate CSV
+    const csvRows = [];
+
+    // Header
+    csvRows.push([
+      'Employee',
+      'Event Type',
+      'Start Date',
+      'End Date',
+      'Days',
+      'Status',
+      'Notes',
+      'Created By',
+      'Created At',
+      'Global'
+    ].join(','));
+
+    // Data rows
+    for (const event of events) {
+      const employeeName = event.employee ? `"${event.employee.name}"` : 'N/A';
+      const eventType = event.type.replace(/_/g, ' ');
+      const startDate = new Date(event.startDate).toLocaleDateString();
+      const endDate = event.endDate ? new Date(event.endDate).toLocaleDateString() : startDate;
+
+      // Calculate days
+      const start = new Date(event.startDate);
+      const end = event.endDate ? new Date(event.endDate) : start;
+      const days = Math.ceil((end - start) / (1000 * 60 * 60 * 24)) + 1;
+
+      const status = event.moderated ? 'Approved' : 'Pending';
+      const notes = event.notes ? `"${event.notes.replace(/"/g, '""')}"` : '';
+      const createdBy = event.createdBy ? `"${event.createdBy.name}"` : '';
+      const createdAt = new Date(event.createdAt).toLocaleDateString();
+      const isGlobal = event.isGlobal ? 'Yes' : 'No';
+
+      csvRows.push([
+        employeeName,
+        eventType,
+        startDate,
+        endDate,
+        days,
+        status,
+        notes,
+        createdBy,
+        createdAt,
+        isGlobal
+      ].join(','));
+    }
+
+    const csv = csvRows.join('\n');
+
+    // Set headers for download
+    res.setHeader('Content-Type', 'text/csv');
+    res.setHeader('Content-Disposition', `attachment; filename="calendar-${year}.csv"`);
+    res.send(csv);
+
+  } catch (error) {
+    console.error(error);
+    res.status(500).send('Server Error');
+  }
+});
+
 // Calendar view
 router.get('/calendar', async (req, res) => {
   try {

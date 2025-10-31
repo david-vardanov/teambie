@@ -17,6 +17,7 @@ const sickCommand = require('./commands/sick');
 const dayoffCommand = require('./commands/dayoff');
 const helpCommand = require('./commands/help');
 const adminCommands = require('./commands/admin');
+const adminAttendanceCommands = require('./commands/admin-attendance');
 
 // Import flows
 const arrivalFlow = require('./flows/arrival');
@@ -59,6 +60,8 @@ function configureBot(bot) {
   bot.command('broadcast', adminCommands.broadcast);
   bot.command('admins', adminCommands.admins);
   bot.command('globalholiday', adminCommands.holiday);
+  bot.command('admincheckin', adminAttendanceCommands.adminCheckin);
+  bot.command('admincheckout', adminAttendanceCommands.adminCheckout);
 
   // Handle text messages (for email linking, time responses, etc.)
   bot.on('text', async (ctx) => {
@@ -74,6 +77,85 @@ function configureBot(bot) {
 
     // Handle custom arrival time (HH:MM format or "in X minutes")
     if (existingEmployee) {
+      // Check if admin is providing custom check-in/checkout time
+      if (ctx.session) {
+        const timeMatch = text.match(/^(\d{1,2}):(\d{2})$/);
+
+        if (timeMatch && ctx.session.adminCheckInEmployeeId) {
+          const hours = parseInt(timeMatch[1]);
+          const minutes = parseInt(timeMatch[2]);
+
+          if (hours >= 0 && hours < 24 && minutes >= 0 && minutes < 60) {
+            const timeStr = `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}`;
+            const currentTime = require('./utils/helpers').getCurrentTime();
+            const currentMinutes = require('./utils/helpers').timeToMinutes(currentTime);
+            const targetMinutes = hours * 60 + minutes;
+            const minutesAgo = currentMinutes - targetMinutes;
+
+            if (minutesAgo >= 0 && minutesAgo <= 720) { // Max 12 hours ago
+              const { processAdminCheckIn } = require('./commands/admin-attendance');
+              const adminAttendanceCommands = require('./commands/admin-attendance');
+
+              // Calculate and process
+              await adminAttendanceCommands.handleCallback(ctx, prisma);
+
+              // Create a mock callback context with the time
+              const mockCtx = {
+                ...ctx,
+                answerCbQuery: async (msg) => {},
+                editMessageText: async (msg) => { await ctx.reply(msg); }
+              };
+
+              // Process the check-in with custom time
+              const employeeId = ctx.session.adminCheckInEmployeeId;
+              await require('./commands/admin-attendance').processAdminCheckIn(
+                mockCtx, prisma, employeeId, minutesAgo
+              );
+
+              delete ctx.session.adminCheckInEmployeeId;
+              return;
+            }
+          }
+
+          await ctx.reply('Invalid time format. Please use HH:MM (e.g., "10:30")');
+          return;
+        }
+
+        if (timeMatch && ctx.session.adminCheckOutEmployeeId) {
+          const hours = parseInt(timeMatch[1]);
+          const minutes = parseInt(timeMatch[2]);
+
+          if (hours >= 0 && hours < 24 && minutes >= 0 && minutes < 60) {
+            const timeStr = `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}`;
+            const currentTime = require('./utils/helpers').getCurrentTime();
+            const currentMinutes = require('./utils/helpers').timeToMinutes(currentTime);
+            const targetMinutes = hours * 60 + minutes;
+            const minutesAgo = currentMinutes - targetMinutes;
+
+            if (minutesAgo >= 0 && minutesAgo <= 720) { // Max 12 hours ago
+              // Create a mock callback context
+              const mockCtx = {
+                ...ctx,
+                answerCbQuery: async (msg) => {},
+                editMessageText: async (msg) => { await ctx.reply(msg); }
+              };
+
+              // Process the check-out with custom time
+              const employeeId = ctx.session.adminCheckOutEmployeeId;
+              await require('./commands/admin-attendance').processAdminCheckOut(
+                mockCtx, prisma, employeeId, minutesAgo
+              );
+
+              delete ctx.session.adminCheckOutEmployeeId;
+              return;
+            }
+          }
+
+          await ctx.reply('Invalid time format. Please use HH:MM (e.g., "18:30")');
+          return;
+        }
+      }
+
       const today = new Date().toISOString().split('T')[0];
       const todayDate = new Date(today);
 
@@ -241,10 +323,12 @@ function configureBot(bot) {
   // Handle callback queries (inline keyboard buttons)
   bot.on('callback_query', async (ctx) => {
     const data = ctx.callbackQuery.data;
+    console.log(`Callback received: ${data}`);
 
     if (data.startsWith('arrival_')) {
       await arrivalFlow.handleCallback(ctx, prisma);
     } else if (data.startsWith('departure_')) {
+      console.log('Routing to departure flow');
       await departureFlow.handleCallback(ctx, prisma);
     } else if (data.startsWith('moderate_')) {
       await moderationFlow.handleCallback(ctx, prisma);
@@ -256,6 +340,8 @@ function configureBot(bot) {
       await sickCommand.handleCallback(ctx, prisma);
     } else if (data.startsWith('dayoff_')) {
       await dayoffCommand.handleCallback(ctx, prisma);
+    } else if (data.startsWith('admin_checkin_') || data.startsWith('admin_checkout_')) {
+      await adminAttendanceCommands.handleCallback(ctx, prisma);
     }
   });
 

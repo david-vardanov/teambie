@@ -101,16 +101,26 @@ async function handleCallback(ctx, prisma) {
     }
 
     if (data === 'departure_still_here') {
-      await prisma.attendanceCheckIn.update({
-        where: { id: checkIn.id },
-        data: { status: 'WAITING_DEPARTURE_REMINDER' }
-      });
+      console.log(`${employee.name} clicked "still here"`);
 
-      await ctx.answerCbQuery();
-      await ctx.editMessageText(
-        `Great! Thanks for confirming. ✅\n\n` +
-        `You'll be automatically checked out if you don't respond. Use /checkout when leaving.`
-      );
+      try {
+        await prisma.attendanceCheckIn.update({
+          where: { id: checkIn.id },
+          data: { status: 'WAITING_DEPARTURE_REMINDER' }
+        });
+
+        await ctx.answerCbQuery('Got it! 👍');
+        await ctx.editMessageText(
+          `Great! Thanks for confirming. ✅\n\n` +
+          `You'll be automatically checked out if you don't respond. Use /checkout when leaving.`
+        );
+
+        console.log(`${employee.name} marked as still here successfully`);
+      } catch (err) {
+        console.error(`Error updating status for ${employee.name}:`, err);
+        await ctx.answerCbQuery('Error occurred, please try again');
+        throw err;
+      }
 
     } else if (data === 'departure_left') {
       // Ask what time they left

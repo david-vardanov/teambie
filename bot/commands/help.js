@@ -52,6 +52,8 @@ module.exports = async (ctx) => {
       helpMessage += `/broadcast - Send announcement to all employees\n`;
       helpMessage += `/admins - View list of system admins\n`;
       helpMessage += `/globalholiday YYYY-MM-DD Name - Create global holiday\n`;
+      helpMessage += `/admincheckin - Manually check in an employee\n`;
+      helpMessage += `/admincheckout - Manually check out an employee\n`;
     }
 
     helpMessage += `\n💡 Tip: All leave requests require admin approval.`;

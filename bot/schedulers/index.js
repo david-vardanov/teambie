@@ -153,6 +153,12 @@ async function checkDepartureTimes(bot, prisma) {
 
     for (const checkIn of checkIns) {
       const employee = checkIn.employee;
+
+      // Skip if exempt from tracking
+      if (employee.exemptFromTracking) {
+        continue;
+      }
+
       const workHours = getWorkHoursForToday(employee);
       const expectedDeparture = calculateDepartureTime(checkIn.actualArrivalTime, workHours);
 
@@ -635,12 +641,18 @@ async function autoCheckoutOverdue(bot, prisma) {
     });
 
     for (const checkIn of checkIns) {
+      const employee = checkIn.employee;
+
+      // Skip if exempt from tracking
+      if (employee.exemptFromTracking) {
+        continue;
+      }
+
       const expectedDeparture = new Date(checkIn.expectedDepartureAt);
       const bufferTime = new Date(expectedDeparture.getTime() + bufferMinutes * 60 * 1000);
 
       // Check if buffer time has passed
       if (now >= bufferTime) {
-        const employee = checkIn.employee;
 
         // Auto-checkout at expected departure time (not current time)
         const departureTimeStr = `${expectedDeparture.getHours()}:${String(expectedDeparture.getMinutes()).padStart(2, '0')}`;

@@ -35,10 +35,12 @@ app.use(methodOverride('_method'));
 app.use(express.static(path.join(__dirname, 'public')));
 app.use(addUserToLocals);
 
-// Flash message middleware
+// Flash message middleware and user data
 app.use((req, res, next) => {
   res.locals.message = req.session.message;
   delete req.session.message;
+  res.locals.userRole = req.session.userRole || null;
+  res.locals.isAdmin = req.session.userRole === 'ADMIN';
   next();
 });
 
