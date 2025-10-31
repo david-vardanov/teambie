@@ -38,25 +38,35 @@ router.get('/calendar/export', requireAdmin, async (req, res) => {
   try {
     const today = new Date();
     const year = req.query.year ? parseInt(req.query.year) : today.getFullYear();
+    const currentYear = today.getFullYear();
 
-    // Get all events for the entire year
-    const yearStart = new Date(year, 0, 1);
-    const yearEnd = new Date(year, 11, 31);
-
-    const events = await prisma.event.findMany({
-      where: {
-        startDate: {
-          gte: yearStart,
-          lte: yearEnd
-        }
-      },
+    // Get all employees with their events
+    const employees = await prisma.employee.findMany({
       include: {
-        employee: true,
-        createdBy: true
+        events: true
       },
-      orderBy: {
-        startDate: 'asc'
+      orderBy: { name: 'asc' }
+    });
+
+    // Get global holidays for the current year
+    const globalHolidays = await prisma.event.findMany({
+      where: {
+        isGlobal: true,
+        type: 'HOLIDAY',
+        startDate: {
+          gte: new Date(currentYear, 0, 1),
+          lte: new Date(currentYear, 11, 31)
+        }
       }
+    });
+
+    // Calculate total global holiday days
+    let globalHolidayDays = 0;
+    globalHolidays.forEach(holiday => {
+      const start = new Date(holiday.startDate);
+      const end = holiday.endDate ? new Date(holiday.endDate) : start;
+      const days = Math.ceil((end - start) / (1000 * 60 * 60 * 24)) + 1;
+      globalHolidayDays += days;
     });
 
     // Generate CSV
@@ -65,46 +75,73 @@ router.get('/calendar/export', requireAdmin, async (req, res) => {
     // Header
     csvRows.push([
       'Employee',
-      'Event Type',
-      'Start Date',
-      'End Date',
-      'Days',
-      'Status',
-      'Notes',
-      'Created By',
-      'Created At',
-      'Global'
+      'Vacation Taken',
+      'Vacation Allowance',
+      'Vacation Remaining',
+      'Holiday Days',
+      'Holiday Allowance',
+      'Holiday Remaining',
+      'Sick Days',
+      'Home Office Days',
+      'Late/Left Early',
+      'Paid Days Off',
+      'Unpaid Days Off'
     ].join(','));
 
-    // Data rows
-    for (const event of events) {
-      const employeeName = event.employee ? `"${event.employee.name}"` : 'N/A';
-      const eventType = event.type.replace(/_/g, ' ');
-      const startDate = new Date(event.startDate).toLocaleDateString();
-      const endDate = event.endDate ? new Date(event.endDate).toLocaleDateString() : startDate;
+    // Calculate stats for each employee
+    const { calculateVacationBalance, calculateHolidayBalance, calculateEventDays } = require('../utils/vacationHelper');
 
-      // Calculate days
-      const start = new Date(event.startDate);
-      const end = event.endDate ? new Date(event.endDate) : start;
-      const days = Math.ceil((end - start) / (1000 * 60 * 60 * 24)) + 1;
+    for (const emp of employees) {
+      const vacationBalance = calculateVacationBalance(emp);
+      const holidayBalance = calculateHolidayBalance(emp);
 
-      const status = event.moderated ? 'Approved' : 'Pending';
-      const notes = event.notes ? `"${event.notes.replace(/"/g, '""')}"` : '';
-      const createdBy = event.createdBy ? `"${event.createdBy.name}"` : '';
-      const createdAt = new Date(event.createdAt).toLocaleDateString();
-      const isGlobal = event.isGlobal ? 'Yes' : 'No';
+      let sickDays = 0;
+      let homeOfficeDays = 0;
+      let lateDays = 0;
+      let paidDaysOff = 0;
+      let unpaidDaysOff = 0;
+
+      emp.events.forEach(event => {
+        if (new Date(event.startDate).getFullYear() !== currentYear) return;
+
+        const days = calculateEventDays(event.startDate, event.endDate);
+
+        switch (event.type) {
+          case 'SICK_DAY':
+            sickDays += days;
+            break;
+          case 'HOME_OFFICE':
+            homeOfficeDays += days;
+            break;
+          case 'LATE_LEFT_EARLY':
+            lateDays += days;
+            break;
+          case 'DAY_OFF_PAID':
+            paidDaysOff += days;
+            break;
+          case 'DAY_OFF_UNPAID':
+            unpaidDaysOff += days;
+            break;
+        }
+      });
+
+      // Add global holidays to employee's holiday count
+      const totalHolidayDays = holidayBalance.daysTaken + globalHolidayDays;
+      const totalHolidayRemaining = emp.holidayDaysPerYear - totalHolidayDays;
 
       csvRows.push([
-        employeeName,
-        eventType,
-        startDate,
-        endDate,
-        days,
-        status,
-        notes,
-        createdBy,
-        createdAt,
-        isGlobal
+        `"${emp.name}"`,
+        vacationBalance.daysTaken,
+        emp.vacationDaysPerYear,
+        vacationBalance.daysLeft,
+        totalHolidayDays,
+        emp.holidayDaysPerYear,
+        totalHolidayRemaining,
+        sickDays,
+        homeOfficeDays,
+        lateDays,
+        paidDaysOff,
+        unpaidDaysOff
       ].join(','));
     }
 
@@ -112,7 +149,7 @@ router.get('/calendar/export', requireAdmin, async (req, res) => {
 
     // Set headers for download
     res.setHeader('Content-Type', 'text/csv');
-    res.setHeader('Content-Disposition', `attachment; filename="calendar-${year}.csv"`);
+    res.setHeader('Content-Disposition', `attachment; filename="employee-stats-${year}.csv"`);
     res.send(csv);
 
   } catch (error) {
