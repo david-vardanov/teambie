@@ -38,118 +38,117 @@ router.get('/calendar/export', requireAdmin, async (req, res) => {
   try {
     const today = new Date();
     const year = req.query.year ? parseInt(req.query.year) : today.getFullYear();
-    const currentYear = today.getFullYear();
 
     // Get all employees with their events
     const employees = await prisma.employee.findMany({
+      where: { archived: false },
       include: {
-        events: true
+        events: {
+          where: {
+            moderated: true,
+            startDate: {
+              gte: new Date(year, 0, 1),
+              lte: new Date(year, 11, 31)
+            }
+          }
+        }
       },
       orderBy: { name: 'asc' }
     });
 
-    // Get global holidays for the current year
+    // Get global holidays
     const globalHolidays = await prisma.event.findMany({
       where: {
         isGlobal: true,
         type: 'HOLIDAY',
         startDate: {
-          gte: new Date(currentYear, 0, 1),
-          lte: new Date(currentYear, 11, 31)
+          gte: new Date(year, 0, 1),
+          lte: new Date(year, 11, 31)
         }
       }
     });
 
-    // Calculate total global holiday days
-    let globalHolidayDays = 0;
-    globalHolidays.forEach(holiday => {
-      const start = new Date(holiday.startDate);
-      const end = holiday.endDate ? new Date(holiday.endDate) : start;
-      const days = Math.ceil((end - start) / (1000 * 60 * 60 * 24)) + 1;
-      globalHolidayDays += days;
+    // Generate all dates for the year
+    const dates = [];
+    for (let month = 0; month < 12; month++) {
+      const daysInMonth = new Date(year, month + 1, 0).getDate();
+      for (let day = 1; day <= daysInMonth; day++) {
+        dates.push(new Date(year, month, day));
+      }
+    }
+
+    // Event type abbreviations
+    const eventAbbreviations = {
+      'VACATION': 'V',
+      'HOLIDAY': 'H',
+      'SICK_DAY': 'S',
+      'HOME_OFFICE': 'HO',
+      'LATE_LEFT_EARLY': 'L',
+      'DAY_OFF_PAID': 'DP',
+      'DAY_OFF_UNPAID': 'DU',
+      'START_WORKING': 'SW',
+      'PROBATION_FINISHED': 'PF',
+      'STOP_WORKING': 'END'
+    };
+
+    // Build header row: Employee name + all dates
+    const headerRow = ['Employee'];
+    dates.forEach(date => {
+      const month = (date.getMonth() + 1).toString().padStart(2, '0');
+      const day = date.getDate().toString().padStart(2, '0');
+      headerRow.push(`${month}/${day}`);
     });
 
-    // Generate CSV
-    const csvRows = [];
+    const csvRows = [headerRow.join(',')];
 
-    // Header
-    csvRows.push([
-      'Employee',
-      'Vacation Taken',
-      'Vacation Allowance',
-      'Vacation Remaining',
-      'Holiday Days',
-      'Holiday Allowance',
-      'Holiday Remaining',
-      'Sick Days',
-      'Home Office Days',
-      'Late/Left Early',
-      'Paid Days Off',
-      'Unpaid Days Off'
-    ].join(','));
-
-    // Calculate stats for each employee
-    const { calculateVacationBalance, calculateHolidayBalance, calculateEventDays } = require('../utils/vacationHelper');
-
-    for (const emp of employees) {
-      const vacationBalance = calculateVacationBalance(emp);
-      const holidayBalance = calculateHolidayBalance(emp);
-
-      let sickDays = 0;
-      let homeOfficeDays = 0;
-      let lateDays = 0;
-      let paidDaysOff = 0;
-      let unpaidDaysOff = 0;
-
-      emp.events.forEach(event => {
-        if (new Date(event.startDate).getFullYear() !== currentYear) return;
-
-        const days = calculateEventDays(event.startDate, event.endDate);
-
-        switch (event.type) {
-          case 'SICK_DAY':
-            sickDays += days;
-            break;
-          case 'HOME_OFFICE':
-            homeOfficeDays += days;
-            break;
-          case 'LATE_LEFT_EARLY':
-            lateDays += days;
-            break;
-          case 'DAY_OFF_PAID':
-            paidDaysOff += days;
-            break;
-          case 'DAY_OFF_UNPAID':
-            unpaidDaysOff += days;
-            break;
-        }
+    // Helper function to check if event occurs on a specific date
+    const getEventForDate = (events, date) => {
+      const dateStr = date.toDateString();
+      const matching = events.filter(event => {
+        const start = new Date(event.startDate);
+        start.setHours(0, 0, 0, 0);
+        const end = event.endDate ? new Date(event.endDate) : start;
+        end.setHours(0, 0, 0, 0);
+        const checkDate = new Date(date);
+        checkDate.setHours(0, 0, 0, 0);
+        return checkDate >= start && checkDate <= end;
       });
 
-      // Add global holidays to employee's holiday count
-      const totalHolidayDays = holidayBalance.daysTaken + globalHolidayDays;
-      const totalHolidayRemaining = emp.holidayDaysPerYear - totalHolidayDays;
+      // If multiple events, join them with +
+      if (matching.length === 0) return '';
+      return matching.map(e => eventAbbreviations[e.type] || e.type.substring(0, 2)).join('+');
+    };
 
-      csvRows.push([
-        `"${emp.name}"`,
-        vacationBalance.daysTaken,
-        emp.vacationDaysPerYear,
-        vacationBalance.daysLeft,
-        totalHolidayDays,
-        emp.holidayDaysPerYear,
-        totalHolidayRemaining,
-        sickDays,
-        homeOfficeDays,
-        lateDays,
-        paidDaysOff,
-        unpaidDaysOff
-      ].join(','));
+    // For each employee, create a row
+    for (const emp of employees) {
+      const row = [`"${emp.name}"`];
+
+      // Combine employee events with global holidays
+      const allEvents = [...emp.events];
+
+      // Add global holidays to every employee
+      globalHolidays.forEach(holiday => {
+        allEvents.push({
+          type: 'HOLIDAY',
+          startDate: holiday.startDate,
+          endDate: holiday.endDate
+        });
+      });
+
+      // For each date, check if there's an event
+      dates.forEach(date => {
+        const eventLabel = getEventForDate(allEvents, date);
+        row.push(eventLabel);
+      });
+
+      csvRows.push(row.join(','));
     }
 
     const csv = csvRows.join('\n');
 
     // Set headers for download
     res.setHeader('Content-Type', 'text/csv');
-    res.setHeader('Content-Disposition', `attachment; filename="employee-stats-${year}.csv"`);
+    res.setHeader('Content-Disposition', `attachment; filename="calendar-${year}.csv"`);
     res.send(csv);
 
   } catch (error) {
