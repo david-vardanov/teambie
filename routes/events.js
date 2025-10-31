@@ -193,21 +193,306 @@ router.get('/calendar/export', requireAdmin, async (req, res) => {
 
     // Add legend worksheet
     const legendSheet = workbook.addWorksheet('Legend');
-    legendSheet.addRow(['Event Type', 'Abbreviation', 'Color']);
-    legendSheet.getRow(1).font = { bold: true };
 
+    // Create header row with better formatting
+    const legendHeader = legendSheet.addRow(['Event Type', 'Abbreviation', 'Color Sample']);
+    legendHeader.font = { bold: true, size: 12 };
+    legendHeader.fill = {
+      type: 'pattern',
+      pattern: 'solid',
+      fgColor: { argb: 'FF4A5568' }
+    };
+    legendHeader.eachCell((cell) => {
+      cell.font = { bold: true, size: 12, color: { argb: 'FFFFFFFF' } };
+      cell.alignment = { horizontal: 'center', vertical: 'middle' };
+      cell.border = {
+        top: { style: 'thin' },
+        left: { style: 'thin' },
+        bottom: { style: 'thin' },
+        right: { style: 'thin' }
+      };
+    });
+
+    // Add each event type with colored cell
     Object.entries(eventConfig).forEach(([type, config]) => {
-      const row = legendSheet.addRow([config.name, config.abbr, '']);
+      const row = legendSheet.addRow([config.name, config.abbr, config.name]);
+
+      // Style the event type name
+      row.getCell(1).border = {
+        top: { style: 'thin' },
+        left: { style: 'thin' },
+        bottom: { style: 'thin' },
+        right: { style: 'thin' }
+      };
+      row.getCell(1).alignment = { vertical: 'middle' };
+
+      // Style the abbreviation
+      row.getCell(2).border = {
+        top: { style: 'thin' },
+        left: { style: 'thin' },
+        bottom: { style: 'thin' },
+        right: { style: 'thin' }
+      };
+      row.getCell(2).alignment = { horizontal: 'center', vertical: 'middle' };
+      row.getCell(2).font = { bold: true };
+
+      // Style the color sample cell
       row.getCell(3).fill = {
         type: 'pattern',
         pattern: 'solid',
         fgColor: { argb: config.color }
       };
+      row.getCell(3).font = { color: { argb: 'FFFFFFFF' }, bold: true };
+      row.getCell(3).alignment = { horizontal: 'center', vertical: 'middle' };
+      row.getCell(3).border = {
+        top: { style: 'thin' },
+        left: { style: 'thin' },
+        bottom: { style: 'thin' },
+        right: { style: 'thin' }
+      };
     });
 
-    legendSheet.getColumn(1).width = 20;
+    // Set column widths for better visibility
+    legendSheet.getColumn(1).width = 25;
     legendSheet.getColumn(2).width = 15;
-    legendSheet.getColumn(3).width = 15;
+    legendSheet.getColumn(3).width = 25;
+
+    // Set row heights for better visibility
+    legendSheet.eachRow((row, rowNumber) => {
+      row.height = 20;
+    });
+
+    // Add Employee Statistics worksheet
+    const statsSheet = workbook.addWorksheet('Employee Statistics');
+
+    // Get current year for stats calculation
+    const currentYear = new Date().getFullYear();
+
+    // Get global holidays for the current year
+    const currentYearGlobalHolidays = await prisma.event.findMany({
+      where: {
+        isGlobal: true,
+        type: 'HOLIDAY',
+        startDate: {
+          gte: new Date(currentYear, 0, 1),
+          lte: new Date(currentYear, 11, 31)
+        }
+      }
+    });
+
+    // Calculate total global holiday days
+    let globalHolidayDays = 0;
+    currentYearGlobalHolidays.forEach(holiday => {
+      const start = new Date(holiday.startDate);
+      const end = holiday.endDate ? new Date(holiday.endDate) : start;
+      const days = Math.ceil((end - start) / (1000 * 60 * 60 * 24)) + 1;
+      globalHolidayDays += days;
+    });
+
+    // Create stats header
+    const statsHeader = statsSheet.addRow([
+      'Employee',
+      'Vacation',
+      'Holiday',
+      'Sick Days',
+      'Home Office',
+      'Paid Day Off',
+      'Unpaid Day Off',
+      'Late/Left Early'
+    ]);
+
+    statsHeader.font = { bold: true, size: 12, color: { argb: 'FFFFFFFF' } };
+    statsHeader.fill = {
+      type: 'pattern',
+      pattern: 'solid',
+      fgColor: { argb: 'FF4A5568' }
+    };
+    statsHeader.eachCell((cell) => {
+      cell.alignment = { horizontal: 'center', vertical: 'middle' };
+      cell.border = {
+        top: { style: 'thin' },
+        left: { style: 'thin' },
+        bottom: { style: 'thin' },
+        right: { style: 'thin' }
+      };
+    });
+
+    // Calculate and add stats for each employee
+    employees.forEach(emp => {
+      // Calculate vacation and holiday balance
+      const vacationBalance = calculateVacationBalance(emp);
+      const holidayBalance = calculateHolidayBalance(emp);
+
+      // Calculate other event types for current year
+      let sickDays = 0;
+      let homeOfficeDays = 0;
+      let lateDays = 0;
+      let paidDaysOff = 0;
+      let unpaidDaysOff = 0;
+
+      emp.events.forEach(event => {
+        if (new Date(event.startDate).getFullYear() !== currentYear) return;
+
+        const days = calculateEventDays(event.startDate, event.endDate);
+
+        switch (event.type) {
+          case 'SICK_DAY':
+            sickDays += days;
+            break;
+          case 'HOME_OFFICE':
+            homeOfficeDays += days;
+            break;
+          case 'LATE_LEFT_EARLY':
+            lateDays += days;
+            break;
+          case 'DAY_OFF_PAID':
+            paidDaysOff += days;
+            break;
+          case 'DAY_OFF_UNPAID':
+            unpaidDaysOff += days;
+            break;
+        }
+      });
+
+      // Add global holidays to employee's holiday count
+      const totalHolidayDays = holidayBalance.daysTaken + globalHolidayDays;
+
+      const row = statsSheet.addRow([
+        emp.name,
+        `${vacationBalance.daysTaken}/${emp.vacationDaysPerYear}`,
+        `${totalHolidayDays}/${emp.holidayDaysPerYear}`,
+        sickDays,
+        homeOfficeDays,
+        paidDaysOff,
+        unpaidDaysOff,
+        lateDays
+      ]);
+
+      // Style employee name
+      row.getCell(1).border = {
+        top: { style: 'thin' },
+        left: { style: 'thin' },
+        bottom: { style: 'thin' },
+        right: { style: 'thin' }
+      };
+      row.getCell(1).alignment = { vertical: 'middle' };
+
+      // Style vacation cell
+      row.getCell(2).fill = {
+        type: 'pattern',
+        pattern: 'solid',
+        fgColor: { argb: 'FF3498DB' }
+      };
+      row.getCell(2).font = { color: { argb: 'FFFFFFFF' }, bold: true };
+      row.getCell(2).alignment = { horizontal: 'center', vertical: 'middle' };
+      row.getCell(2).border = {
+        top: { style: 'thin' },
+        left: { style: 'thin' },
+        bottom: { style: 'thin' },
+        right: { style: 'thin' }
+      };
+
+      // Style holiday cell
+      row.getCell(3).fill = {
+        type: 'pattern',
+        pattern: 'solid',
+        fgColor: { argb: 'FF9B59B6' }
+      };
+      row.getCell(3).font = { color: { argb: 'FFFFFFFF' }, bold: true };
+      row.getCell(3).alignment = { horizontal: 'center', vertical: 'middle' };
+      row.getCell(3).border = {
+        top: { style: 'thin' },
+        left: { style: 'thin' },
+        bottom: { style: 'thin' },
+        right: { style: 'thin' }
+      };
+
+      // Style sick days cell
+      row.getCell(4).fill = {
+        type: 'pattern',
+        pattern: 'solid',
+        fgColor: { argb: 'FFE74C3C' }
+      };
+      row.getCell(4).font = { color: { argb: 'FFFFFFFF' }, bold: true };
+      row.getCell(4).alignment = { horizontal: 'center', vertical: 'middle' };
+      row.getCell(4).border = {
+        top: { style: 'thin' },
+        left: { style: 'thin' },
+        bottom: { style: 'thin' },
+        right: { style: 'thin' }
+      };
+
+      // Style home office cell
+      row.getCell(5).fill = {
+        type: 'pattern',
+        pattern: 'solid',
+        fgColor: { argb: 'FF16A085' }
+      };
+      row.getCell(5).font = { color: { argb: 'FFFFFFFF' }, bold: true };
+      row.getCell(5).alignment = { horizontal: 'center', vertical: 'middle' };
+      row.getCell(5).border = {
+        top: { style: 'thin' },
+        left: { style: 'thin' },
+        bottom: { style: 'thin' },
+        right: { style: 'thin' }
+      };
+
+      // Style paid day off cell
+      row.getCell(6).fill = {
+        type: 'pattern',
+        pattern: 'solid',
+        fgColor: { argb: 'FF27AE60' }
+      };
+      row.getCell(6).font = { color: { argb: 'FFFFFFFF' }, bold: true };
+      row.getCell(6).alignment = { horizontal: 'center', vertical: 'middle' };
+      row.getCell(6).border = {
+        top: { style: 'thin' },
+        left: { style: 'thin' },
+        bottom: { style: 'thin' },
+        right: { style: 'thin' }
+      };
+
+      // Style unpaid day off cell
+      row.getCell(7).fill = {
+        type: 'pattern',
+        pattern: 'solid',
+        fgColor: { argb: 'FF95A5A6' }
+      };
+      row.getCell(7).font = { color: { argb: 'FFFFFFFF' }, bold: true };
+      row.getCell(7).alignment = { horizontal: 'center', vertical: 'middle' };
+      row.getCell(7).border = {
+        top: { style: 'thin' },
+        left: { style: 'thin' },
+        bottom: { style: 'thin' },
+        right: { style: 'thin' }
+      };
+
+      // Style late/left early cell
+      row.getCell(8).fill = {
+        type: 'pattern',
+        pattern: 'solid',
+        fgColor: { argb: 'FFF39C12' }
+      };
+      row.getCell(8).font = { color: { argb: 'FFFFFFFF' }, bold: true };
+      row.getCell(8).alignment = { horizontal: 'center', vertical: 'middle' };
+      row.getCell(8).border = {
+        top: { style: 'thin' },
+        left: { style: 'thin' },
+        bottom: { style: 'thin' },
+        right: { style: 'thin' }
+      };
+    });
+
+    // Set column widths
+    statsSheet.getColumn(1).width = 20;
+    for (let i = 2; i <= 8; i++) {
+      statsSheet.getColumn(i).width = 15;
+    }
+
+    // Set row heights
+    statsSheet.eachRow((row, rowNumber) => {
+      row.height = 20;
+    });
 
     // Generate Excel file
     const buffer = await workbook.xlsx.writeBuffer();
