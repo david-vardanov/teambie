@@ -89,6 +89,7 @@ router.post('/', async (req, res) => {
         startDate: new Date(startDate),
         vacationDaysPerYear: parseInt(vacationDaysPerYear) || 28,
         holidayDaysPerYear: parseInt(holidayDaysPerYear) || 14,
+        exemptFromTracking: (createUserAccount === 'on' && userRole === 'ADMIN') ? true : (exemptFromTracking === 'on' || exemptFromTracking === true),
         arrivalWindowStart: arrivalWindowStart || '10:00',
         arrivalWindowEnd: arrivalWindowEnd || '11:00',
         workHoursPerDay: parseInt(workHoursPerDay) || 8,
@@ -283,6 +284,14 @@ router.put('/:id', async (req, res) => {
           where: { id: user.id },
           data: { role: role }
         });
+
+        // If promoted to admin, auto-exempt from tracking
+        if (role === 'ADMIN') {
+          await prisma.employee.update({
+            where: { id: parseInt(req.params.id) },
+            data: { exemptFromTracking: true }
+          });
+        }
       }
     }
 
