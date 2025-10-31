@@ -16,9 +16,12 @@ async function teamStatus(ctx) {
     const today = getCurrentDate();
     const todayDate = new Date(today);
 
-    // Get all active employees
+    // Get all active employees (excluding exempt from tracking)
     const employees = await prisma.employee.findMany({
-      where: { archived: false },
+      where: {
+        archived: false,
+        exemptFromTracking: false
+      },
       include: {
         events: {
           where: {
