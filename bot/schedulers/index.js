@@ -4,6 +4,7 @@ const {
   getCurrentDateTime,
   getCurrentTime,
   isRecurringHomeOfficeDay,
+  isWeekend,
   hasEventForDate,
   getAdminTelegramIds,
   notifyAdmins,
@@ -93,6 +94,11 @@ async function checkArrivalTimes(bot, prisma) {
     for (const employee of employees) {
       // Skip if exempt from tracking
       if (employee.exemptFromTracking) {
+        continue;
+      }
+
+      // Skip weekends (Saturday and Sunday)
+      if (isWeekend()) {
         continue;
       }
 
@@ -206,6 +212,11 @@ async function followUpPendingArrivals(bot, prisma) {
         continue;
       }
 
+      // Skip weekends (Saturday and Sunday)
+      if (isWeekend()) {
+        continue;
+      }
+
       // Check if enough time has passed since last reminder
       if (checkIn.lastArrivalReminderAt) {
         const minutesSinceLastReminder = (now - new Date(checkIn.lastArrivalReminderAt)) / (1000 * 60);
@@ -300,6 +311,9 @@ async function checkMissedCheckIns(bot, prisma) {
     for (const employee of employees) {
       // Skip if exempt from tracking
       if (employee.exemptFromTracking) continue;
+
+      // Skip weekends (Saturday and Sunday)
+      if (isWeekend()) continue;
 
       // Skip if recurring home office or has event
       if (isRecurringHomeOfficeDay(employee)) continue;

@@ -106,6 +106,14 @@ function isFriday() {
 }
 
 /**
+ * Check if today is a weekend (Saturday or Sunday)
+ */
+function isWeekend() {
+  const day = getCurrentDateTime().getDay();
+  return day === 0 || day === 6; // 0 = Sunday, 6 = Saturday
+}
+
+/**
  * Get work hours for today
  */
 function getWorkHoursForToday(employee) {
@@ -314,6 +322,7 @@ module.exports = {
   calculateDepartureTime,
   isRecurringHomeOfficeDay,
   isFriday,
+  isWeekend,
   getWorkHoursForToday,
   formatDate,
   getTomorrowDate,
