@@ -38,7 +38,7 @@ module.exports = async (ctx) => {
       }
     });
 
-    if (!checkIn || checkIn.status !== 'ARRIVED') {
+    if (!checkIn) {
       await ctx.reply('⚠️ You need to check in first before checking out.\n\nUse /checkin to check in.');
       return;
     }
@@ -48,6 +48,12 @@ module.exports = async (ctx) => {
       await ctx.reply(
         `⚠️ You already checked out at ${checkIn.actualDepartureTime}.`
       );
+      return;
+    }
+
+    // Allow checkout only if they have actually arrived
+    if (!checkIn.actualArrivalTime || !['ARRIVED', 'WAITING_DEPARTURE', 'WAITING_DEPARTURE_REMINDER'].includes(checkIn.status)) {
+      await ctx.reply('⚠️ You need to check in first before checking out.\n\nUse /checkin to check in.');
       return;
     }
 

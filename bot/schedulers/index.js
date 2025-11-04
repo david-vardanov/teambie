@@ -165,6 +165,25 @@ async function checkDepartureTimes(bot, prisma) {
         continue;
       }
 
+      // Skip weekends (Saturday and Sunday)
+      if (isWeekend()) {
+        continue;
+      }
+
+      // Skip if today is recurring home office day
+      if (isRecurringHomeOfficeDay(employee)) {
+        continue;
+      }
+
+      // Skip if has event for today (vacation, sick, holiday, home office)
+      const hasEvent = await hasEventForDate(
+        prisma,
+        employee.id,
+        today,
+        ['VACATION', 'SICK_DAY', 'HOLIDAY', 'HOME_OFFICE']
+      );
+      if (hasEvent) continue;
+
       const workHours = getWorkHoursForToday(employee);
       const expectedDeparture = calculateDepartureTime(checkIn.actualArrivalTime, workHours);
 
@@ -216,6 +235,20 @@ async function followUpPendingArrivals(bot, prisma) {
       if (isWeekend()) {
         continue;
       }
+
+      // Skip if today is recurring home office day
+      if (isRecurringHomeOfficeDay(employee)) {
+        continue;
+      }
+
+      // Skip if has event for today (vacation, sick, holiday, home office)
+      const hasEvent = await hasEventForDate(
+        prisma,
+        employee.id,
+        today,
+        ['VACATION', 'SICK_DAY', 'HOLIDAY', 'HOME_OFFICE']
+      );
+      if (hasEvent) continue;
 
       // Check if enough time has passed since last reminder
       if (checkIn.lastArrivalReminderAt) {
@@ -372,9 +405,19 @@ async function sendMorningReport(bot, prisma) {
     const today = getCurrentDate();
     const todayDate = new Date(today);
 
-    // Get all active employees
+    // Get admin emails to exclude them
+    const adminUsers = await prisma.user.findMany({
+      where: { role: 'ADMIN' },
+      select: { email: true }
+    });
+    const adminEmails = adminUsers.map(a => a.email);
+
+    // Get all active employees (excluding admins)
     const employees = await prisma.employee.findMany({
-      where: { archived: false }
+      where: {
+        archived: false,
+        email: { notIn: adminEmails }
+      }
     });
 
     let expectedInOffice = 0;
@@ -452,17 +495,32 @@ async function sendEndOfDayReport(bot, prisma) {
     const today = getCurrentDate();
     const todayDate = new Date(today);
 
-    // Get all check-ins for today
+    // Get admin emails to exclude them
+    const adminUsers = await prisma.user.findMany({
+      where: { role: 'ADMIN' },
+      select: { email: true }
+    });
+    const adminEmails = adminUsers.map(a => a.email);
+
+    // Get all check-ins for today (excluding admins)
     const checkIns = await prisma.attendanceCheckIn.findMany({
-      where: { date: todayDate },
+      where: {
+        date: todayDate,
+        employee: {
+          email: { notIn: adminEmails }
+        }
+      },
       include: { employee: true }
     });
 
-    // Get late/early leave events for today
+    // Get late/early leave events for today (excluding admins)
     const lateEarlyEvents = await prisma.event.findMany({
       where: {
         type: 'LATE_LEFT_EARLY',
-        startDate: todayDate
+        startDate: todayDate,
+        employee: {
+          email: { notIn: adminEmails }
+        }
       },
       include: { employee: true }
     });
@@ -529,17 +587,27 @@ async function sendWeeklyReport(bot, prisma) {
     lastSunday.setDate(lastMonday.getDate() + 6);
     lastSunday.setHours(23, 59, 59, 999);
 
-    // Get check-ins for last week
+    // Get admin emails to exclude them
+    const adminUsers = await prisma.user.findMany({
+      where: { role: 'ADMIN' },
+      select: { email: true }
+    });
+    const adminEmails = adminUsers.map(a => a.email);
+
+    // Get check-ins for last week (excluding admins)
     const checkIns = await prisma.attendanceCheckIn.findMany({
       where: {
         date: {
           gte: lastMonday,
           lte: lastSunday
+        },
+        employee: {
+          email: { notIn: adminEmails }
         }
       }
     });
 
-    // Get events for last week
+    // Get events for last week (excluding admins)
     const events = await prisma.event.findMany({
       where: {
         moderated: true,
@@ -547,7 +615,10 @@ async function sendWeeklyReport(bot, prisma) {
         OR: [
           { endDate: { gte: lastMonday } },
           { endDate: null }
-        ]
+        ],
+        employee: {
+          email: { notIn: adminEmails }
+        }
       }
     });
 

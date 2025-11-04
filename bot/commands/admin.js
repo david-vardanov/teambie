@@ -203,18 +203,28 @@ async function weekReport(ctx) {
     sunday.setDate(monday.getDate() + 6);
     sunday.setHours(23, 59, 59, 999);
 
-    // Get all check-ins for the week
+    // Get admin emails to exclude them
+    const adminUsers = await prisma.user.findMany({
+      where: { role: 'ADMIN' },
+      select: { email: true }
+    });
+    const adminEmails = adminUsers.map(a => a.email);
+
+    // Get all check-ins for the week (excluding admins)
     const checkIns = await prisma.attendanceCheckIn.findMany({
       where: {
         date: {
           gte: monday,
           lte: sunday
+        },
+        employee: {
+          email: { notIn: adminEmails }
         }
       },
       include: { employee: true }
     });
 
-    // Get all events for the week
+    // Get all events for the week (excluding admins)
     const events = await prisma.event.findMany({
       where: {
         moderated: true,
@@ -222,7 +232,10 @@ async function weekReport(ctx) {
         OR: [
           { endDate: { gte: monday } },
           { endDate: null }
-        ]
+        ],
+        employee: {
+          email: { notIn: adminEmails }
+        }
       },
       include: { employee: true }
     });
