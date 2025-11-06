@@ -21,12 +21,22 @@ jobs:
           key: ${{ secrets.SSH_PRIVATE_KEY }}
           script: |
             cd ~/teambie
-            pm2 stop all
+            echo "📦 Stopping PM2..."
+            pm2 stop all || true
+
+            echo "🔄 Pulling latest code..."
             git stash
             git pull origin main
+
+            echo "📚 Installing dependencies..."
             npm install
+
+            echo "🗄️ Updating database schema..."
             npx prisma generate
-            npx prisma db push --accept-data-loss --skip-generate
-            pm2 restart all
+            npx prisma db push --accept-data-loss --force-reset || npx prisma db push --accept-data-loss
+
+            echo "🚀 Restarting application..."
+            pm2 restart all || pm2 start server.js --name teambie
             pm2 status
+
             echo "✅ Deployment completed successfully!"

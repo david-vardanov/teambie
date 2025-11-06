@@ -7,7 +7,8 @@ const {
 /**
  * /newtask - Create a new task
  */
-async function newTask(ctx, prisma) {
+async function newTask(ctx) {
+  const prisma = ctx.prisma;
   const settings = await prisma.botSettings.findFirst();
 
   if (!settings?.clickupEnabled || !settings?.clickupApiToken) {
@@ -28,7 +29,8 @@ async function newTask(ctx, prisma) {
 /**
  * /tasks - List all tasks in the configured list
  */
-async function listTasks(ctx, prisma) {
+async function listTasks(ctx) {
+  const prisma = ctx.prisma;
   try {
     const settings = await prisma.botSettings.findFirst();
 
@@ -82,7 +84,8 @@ async function listTasks(ctx, prisma) {
 /**
  * /mytasks - List tasks assigned to current user
  */
-async function myTasks(ctx, prisma) {
+async function myTasks(ctx) {
+  const prisma = ctx.prisma;
   try {
     const employee = await prisma.employee.findUnique({
       where: { telegramUserId: BigInt(ctx.from.id) }
@@ -139,7 +142,8 @@ async function myTasks(ctx, prisma) {
 /**
  * /task_[id] - View task details (used as command)
  */
-async function viewTask(ctx, prisma) {
+async function viewTask(ctx) {
+  const prisma = ctx.prisma;
   const taskId = ctx.message.text.replace('/task_', '').trim();
 
   if (!taskId) {
@@ -205,7 +209,8 @@ async function viewTask(ctx, prisma) {
 /**
  * Handle edit task callback
  */
-async function handleEditTaskCallback(ctx, prisma) {
+async function handleEditTaskCallback(ctx) {
+  const prisma = ctx.prisma;
   const taskId = ctx.match[1];
   await ctx.answerCbQuery();
   return startTaskEditFlow(ctx, prisma, taskId);
@@ -214,7 +219,8 @@ async function handleEditTaskCallback(ctx, prisma) {
 /**
  * Handle add subtask callback
  */
-async function handleAddSubtaskCallback(ctx, prisma) {
+async function handleAddSubtaskCallback(ctx) {
+  const prisma = ctx.prisma;
   const parentId = ctx.match[1];
   await ctx.answerCbQuery();
 
@@ -233,7 +239,8 @@ async function handleAddSubtaskCallback(ctx, prisma) {
 /**
  * Handle subtask creation steps
  */
-async function handleSubtaskCreationStep(ctx, prisma) {
+async function handleSubtaskCreationStep(ctx) {
+  const prisma = ctx.prisma;
   if (!ctx.session.subtaskCreation) return;
 
   const { parentId, step, data = {} } = ctx.session.subtaskCreation;
@@ -282,7 +289,8 @@ async function handleSubtaskCreationStep(ctx, prisma) {
 /**
  * Handle subtask assignee callback
  */
-async function handleSubtaskAssigneeCallback(ctx, prisma) {
+async function handleSubtaskAssigneeCallback(ctx) {
+  const prisma = ctx.prisma;
   const [parentId, assigneeId] = ctx.match.slice(1);
   await ctx.answerCbQuery();
 
@@ -336,7 +344,8 @@ async function handleSubtaskAssigneeCallback(ctx, prisma) {
 /**
  * Handle delete task callback
  */
-async function handleDeleteTaskCallback(ctx, prisma) {
+async function handleDeleteTaskCallback(ctx) {
+  const prisma = ctx.prisma;
   const [taskId, action] = ctx.match.slice(1);
 
   if (action === 'confirm') {
