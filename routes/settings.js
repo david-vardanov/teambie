@@ -128,16 +128,20 @@ router.post('/bot', requireAdmin, async (req, res) => {
         }
       });
     } else {
+      // Don't save masked tokens - keep existing if token contains "..."
+      const isMaskedTelegram = telegramBotToken && telegramBotToken.includes('...');
+      const isMaskedClickUp = clickupApiToken && clickupApiToken.includes('...');
+
       settings = await prisma.botSettings.update({
         where: { id: settings.id },
         data: {
-          telegramBotToken: telegramBotToken || settings.telegramBotToken,
+          telegramBotToken: isMaskedTelegram ? settings.telegramBotToken : (telegramBotToken || settings.telegramBotToken),
           botEnabled: botEnabled === 'on',
           timezoneOffset: parseInt(timezoneOffset) || 3,
           morningReportTime: morningReportTime || "09:00",
           endOfDayReportTime: endOfDayReportTime || "19:00",
           missedCheckInTime: missedCheckInTime || "12:00",
-          clickupApiToken: clickupApiToken || settings.clickupApiToken,
+          clickupApiToken: isMaskedClickUp ? settings.clickupApiToken : (clickupApiToken || settings.clickupApiToken),
           clickupWorkspaceId: clickupWorkspaceId || settings.clickupWorkspaceId,
           clickupSpaceId: clickupSpaceId || settings.clickupSpaceId,
           clickupFolderId: clickupFolderId || settings.clickupFolderId,
