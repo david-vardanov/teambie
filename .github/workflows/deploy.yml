@@ -20,9 +20,11 @@ jobs:
           username: ${{ secrets.SSH_USER }}
           key: ${{ secrets.SSH_PRIVATE_KEY }}
           script: |
+            export PATH=$PATH:/usr/local/bin:~/.npm-global/bin
             cd ~/teambie
+
             echo "📦 Stopping PM2..."
-            pm2 stop all || true
+            npx pm2 stop all || true
 
             echo "🔄 Pulling latest code..."
             git stash
@@ -33,10 +35,12 @@ jobs:
 
             echo "🗄️ Updating database schema..."
             npx prisma generate
-            npx prisma db push --accept-data-loss --force-reset || npx prisma db push --accept-data-loss
+            npx prisma db push --accept-data-loss
 
             echo "🚀 Restarting application..."
-            pm2 restart all || pm2 start server.js --name teambie
-            pm2 status
+            npx pm2 restart all || npx pm2 start server.js --name teambie
+
+            echo "📊 PM2 Status..."
+            npx pm2 status
 
             echo "✅ Deployment completed successfully!"
