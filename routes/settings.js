@@ -51,17 +51,26 @@ router.get('/bot', requireAdmin, async (req, res) => {
         id: true,
         name: true,
         email: true,
-        telegramUserId: true
+        telegramUserId: true,
+        clickupUserId: true
       }
     });
 
     const linkedEmployees = allEmployees.filter(e => e.telegramUserId !== null).length;
     const totalEmployees = allEmployees.length;
 
+    // Get ClickUp linked employees
+    const clickupLinkedEmployees = allEmployees.filter(e => e.clickupUserId !== null).length;
+
     // Get pending events
     const pendingEvents = await prisma.event.count({
       where: { moderated: false }
     });
+
+    // Mask ClickUp API token
+    const maskedClickUpToken = (settings.clickupApiToken && settings.clickupApiToken.length > 20)
+      ? (settings.clickupApiToken.substring(0, 20) + '...')
+      : settings.clickupApiToken || '';
 
     return res.render('settings/bot-settings', {
       settings: settings,
@@ -69,6 +78,8 @@ router.get('/bot', requireAdmin, async (req, res) => {
       tokenConfigured: tokenConfigured,
       linkedEmployees: linkedEmployees,
       totalEmployees: totalEmployees,
+      clickupLinkedEmployees: clickupLinkedEmployees,
+      maskedClickUpToken: maskedClickUpToken,
       pendingEvents: pendingEvents,
       allEmployees: allEmployees
     });
@@ -87,7 +98,13 @@ router.post('/bot', requireAdmin, async (req, res) => {
       timezoneOffset,
       morningReportTime,
       endOfDayReportTime,
-      missedCheckInTime
+      missedCheckInTime,
+      clickupApiToken,
+      clickupWorkspaceId,
+      clickupSpaceId,
+      clickupFolderId,
+      clickupListId,
+      clickupEnabled
     } = req.body;
 
     let settings = await prisma.botSettings.findFirst();
@@ -101,6 +118,12 @@ router.post('/bot', requireAdmin, async (req, res) => {
           morningReportTime: morningReportTime || "09:00",
           endOfDayReportTime: endOfDayReportTime || "19:00",
           missedCheckInTime: missedCheckInTime || "12:00",
+          clickupApiToken: clickupApiToken || null,
+          clickupWorkspaceId: clickupWorkspaceId || null,
+          clickupSpaceId: clickupSpaceId || null,
+          clickupFolderId: clickupFolderId || null,
+          clickupListId: clickupListId || null,
+          clickupEnabled: clickupEnabled === 'on',
           updatedBy: req.session?.userId
         }
       });
@@ -114,6 +137,12 @@ router.post('/bot', requireAdmin, async (req, res) => {
           morningReportTime: morningReportTime || "09:00",
           endOfDayReportTime: endOfDayReportTime || "19:00",
           missedCheckInTime: missedCheckInTime || "12:00",
+          clickupApiToken: clickupApiToken || settings.clickupApiToken,
+          clickupWorkspaceId: clickupWorkspaceId || settings.clickupWorkspaceId,
+          clickupSpaceId: clickupSpaceId || settings.clickupSpaceId,
+          clickupFolderId: clickupFolderId || settings.clickupFolderId,
+          clickupListId: clickupListId || settings.clickupListId,
+          clickupEnabled: clickupEnabled === 'on',
           updatedBy: req.session?.userId
         }
       });
@@ -219,6 +248,101 @@ router.post('/bot/test', requireAdmin, async (req, res) => {
       text: `❌ Error: ${error.message}`
     };
     res.redirect('/config/bot');
+  }
+});
+
+// Test ClickUp connection (admin only)
+router.post('/clickup/test', requireAdmin, async (req, res) => {
+  try {
+    const settings = await getBotSettings();
+    const clickupToken = settings.clickupApiToken;
+
+    if (!clickupToken) {
+      req.session.message = {
+        type: 'error',
+        text: 'ClickUp API token not configured'
+      };
+      return res.redirect('/config/bot');
+    }
+
+    const ClickUpService = require('../services/clickup');
+    const clickup = new ClickUpService(clickupToken);
+
+    try {
+      const user = await clickup.getUser();
+      req.session.message = {
+        type: 'success',
+        text: `✅ ClickUp connected successfully! User: ${user.user.username}`
+      };
+    } catch (error) {
+      req.session.message = {
+        type: 'error',
+        text: `❌ ClickUp connection failed: ${error.message}`
+      };
+    }
+
+    res.redirect('/config/bot');
+  } catch (error) {
+    console.error(error);
+    req.session.message = {
+      type: 'error',
+      text: `❌ Error: ${error.message}`
+    };
+    res.redirect('/config/bot');
+  }
+});
+
+// Get ClickUp workspaces (admin only)
+router.get('/clickup/workspaces', requireAdmin, async (req, res) => {
+  try {
+    const settings = await getBotSettings();
+    if (!settings.clickupApiToken) {
+      return res.status(400).json({ error: 'ClickUp API token not configured' });
+    }
+
+    const ClickUpService = require('../services/clickup');
+    const clickup = new ClickUpService(settings.clickupApiToken);
+    const workspaces = await clickup.getWorkspaces();
+
+    res.json(workspaces);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Get ClickUp spaces (admin only)
+router.get('/clickup/spaces/:workspaceId', requireAdmin, async (req, res) => {
+  try {
+    const settings = await getBotSettings();
+    if (!settings.clickupApiToken) {
+      return res.status(400).json({ error: 'ClickUp API token not configured' });
+    }
+
+    const ClickUpService = require('../services/clickup');
+    const clickup = new ClickUpService(settings.clickupApiToken);
+    const spaces = await clickup.getSpaces(req.params.workspaceId);
+
+    res.json(spaces);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Get ClickUp lists (admin only)
+router.get('/clickup/lists/:spaceId', requireAdmin, async (req, res) => {
+  try {
+    const settings = await getBotSettings();
+    if (!settings.clickupApiToken) {
+      return res.status(400).json({ error: 'ClickUp API token not configured' });
+    }
+
+    const ClickUpService = require('../services/clickup');
+    const clickup = new ClickUpService(settings.clickupApiToken);
+    const lists = await clickup.getSpaceLists(req.params.spaceId);
+
+    res.json(lists);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
   }
 });
 

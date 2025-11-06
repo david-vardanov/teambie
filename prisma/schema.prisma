@@ -47,6 +47,9 @@ model Employee {
   workHoursOnFriday         Int                 @default(8)
   recurringHomeOfficeDays   Int[]               @default([])
 
+  // ClickUp integration
+  clickupUserId             String?             @unique
+
   attendanceCheckIns        AttendanceCheckIn[]
 }
 
@@ -131,6 +134,15 @@ model BotSettings {
   missedCheckInTime         String   @default("12:00")
   arrivalReminderInterval   Int      @default(5) // Minutes between arrival reminders
   autoCheckoutBufferMinutes Int      @default(30) // Auto-checkout after X min of no response
+
+  // ClickUp integration
+  clickupApiToken           String?
+  clickupWorkspaceId        String?
+  clickupSpaceId            String?
+  clickupFolderId           String?
+  clickupListId             String?
+  clickupEnabled            Boolean  @default(false)
+
   updatedAt                 DateTime @updatedAt
   updatedBy                 Int?
   updatedByUser             User?    @relation(fields: [updatedBy], references: [id], onDelete: SetNull)

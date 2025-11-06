@@ -88,6 +88,81 @@
 
             <div class="card">
                 <div class="card-body">
+                    <h2>ClickUp Integration</h2>
+
+                    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 15px; margin-bottom: 20px;">
+                        <div>
+                            <strong>ClickUp Enabled:</strong><br>
+                            <%= settings.clickupEnabled ? '✅ Yes' : '❌ No' %>
+                        </div>
+                        <div>
+                            <strong>API Token Configured:</strong><br>
+                            <%= settings.clickupApiToken ? '✅ Yes' : '❌ No' %>
+                        </div>
+                        <div>
+                            <strong>Linked Employees:</strong><br>
+                            <%= clickupLinkedEmployees %> / <%= totalEmployees %>
+                        </div>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="clickupApiToken">ClickUp API Token</label>
+                        <input type="text" name="clickupApiToken" id="clickupApiToken"
+                               value="<%= maskedClickUpToken %>"
+                               placeholder="pk_123456789_ABCDEFGHIJKLMNOPQRSTUVWXYZ">
+                        <small style="color: #666;">Get from ClickUp Settings → Apps → API Token</small>
+                    </div>
+
+                    <% if (settings.clickupApiToken) { %>
+                        <div style="margin-bottom: 15px;">
+                            <form action="/config/clickup/test" method="POST" style="display: inline;">
+                                <button type="submit" class="btn btn-secondary">Test ClickUp Connection</button>
+                            </form>
+                        </div>
+
+                        <div class="form-group">
+                            <label for="clickupWorkspaceId">Workspace ID</label>
+                            <input type="text" name="clickupWorkspaceId" id="clickupWorkspaceId"
+                                   value="<%= settings.clickupWorkspaceId || '' %>"
+                                   placeholder="Select workspace below or enter manually">
+                            <button type="button" class="btn btn-secondary" onclick="loadWorkspaces()">Load Workspaces</button>
+                            <div id="workspacesList" style="margin-top: 10px;"></div>
+                        </div>
+
+                        <div class="form-group">
+                            <label for="clickupSpaceId">Space ID</label>
+                            <input type="text" name="clickupSpaceId" id="clickupSpaceId"
+                                   value="<%= settings.clickupSpaceId || '' %>"
+                                   placeholder="Select space below or enter manually">
+                            <button type="button" class="btn btn-secondary" onclick="loadSpaces()">Load Spaces</button>
+                            <div id="spacesList" style="margin-top: 10px;"></div>
+                        </div>
+
+                        <div class="form-group">
+                            <label for="clickupListId">List ID</label>
+                            <input type="text" name="clickupListId" id="clickupListId"
+                                   value="<%= settings.clickupListId || '' %>"
+                                   placeholder="Select list below or enter manually">
+                            <button type="button" class="btn btn-secondary" onclick="loadLists()">Load Lists</button>
+                            <div id="listsList" style="margin-top: 10px;"></div>
+                        </div>
+                    <% } %>
+
+                    <div class="form-group">
+                        <label>
+                            <input type="checkbox" name="clickupEnabled" <%= settings.clickupEnabled ? 'checked' : '' %>>
+                            Enable ClickUp Task Management
+                        </label>
+                    </div>
+
+                    <small style="color: #666;">
+                        Task management commands will be available in the bot once enabled and configured.
+                    </small>
+                </div>
+            </div>
+
+            <div class="card">
+                <div class="card-body">
                     <h2>Schedule Configuration</h2>
 
                     <div class="form-group">
@@ -212,6 +287,125 @@
             </div>
         </div>
     </main>
+
+    <script>
+        async function loadWorkspaces() {
+            const container = document.getElementById('workspacesList');
+            container.innerHTML = '<p>Loading...</p>';
+
+            try {
+                const response = await fetch('/config/clickup/workspaces');
+                if (!response.ok) throw new Error('Failed to load workspaces');
+
+                const workspaces = await response.json();
+                if (workspaces.length === 0) {
+                    container.innerHTML = '<p style="color: #666;">No workspaces found</p>';
+                    return;
+                }
+
+                let html = '<div style="max-height: 200px; overflow-y: auto; border: 1px solid #ddd; border-radius: 4px; padding: 10px;">';
+                workspaces.forEach(ws => {
+                    html += `<div style="padding: 8px; margin: 4px 0; background: #f8f9fa; border-radius: 4px; cursor: pointer;"
+                                  onclick="selectWorkspace('${ws.id}', '${ws.name}')">
+                                <strong>${ws.name}</strong><br>
+                                <small style="color: #666;">ID: ${ws.id}</small>
+                             </div>`;
+                });
+                html += '</div>';
+                container.innerHTML = html;
+            } catch (error) {
+                container.innerHTML = `<p style="color: red;">Error: ${error.message}</p>`;
+            }
+        }
+
+        function selectWorkspace(id, name) {
+            document.getElementById('clickupWorkspaceId').value = id;
+            document.getElementById('workspacesList').innerHTML =
+                `<p style="color: green;">✅ Selected: ${name}</p>`;
+        }
+
+        async function loadSpaces() {
+            const workspaceId = document.getElementById('clickupWorkspaceId').value;
+            if (!workspaceId) {
+                alert('Please select a workspace first');
+                return;
+            }
+
+            const container = document.getElementById('spacesList');
+            container.innerHTML = '<p>Loading...</p>';
+
+            try {
+                const response = await fetch(`/config/clickup/spaces/${workspaceId}`);
+                if (!response.ok) throw new Error('Failed to load spaces');
+
+                const spaces = await response.json();
+                if (spaces.length === 0) {
+                    container.innerHTML = '<p style="color: #666;">No spaces found</p>';
+                    return;
+                }
+
+                let html = '<div style="max-height: 200px; overflow-y: auto; border: 1px solid #ddd; border-radius: 4px; padding: 10px;">';
+                spaces.forEach(space => {
+                    html += `<div style="padding: 8px; margin: 4px 0; background: #f8f9fa; border-radius: 4px; cursor: pointer;"
+                                  onclick="selectSpace('${space.id}', '${space.name}')">
+                                <strong>${space.name}</strong><br>
+                                <small style="color: #666;">ID: ${space.id}</small>
+                             </div>`;
+                });
+                html += '</div>';
+                container.innerHTML = html;
+            } catch (error) {
+                container.innerHTML = `<p style="color: red;">Error: ${error.message}</p>`;
+            }
+        }
+
+        function selectSpace(id, name) {
+            document.getElementById('clickupSpaceId').value = id;
+            document.getElementById('spacesList').innerHTML =
+                `<p style="color: green;">✅ Selected: ${name}</p>`;
+        }
+
+        async function loadLists() {
+            const spaceId = document.getElementById('clickupSpaceId').value;
+            if (!spaceId) {
+                alert('Please select a space first');
+                return;
+            }
+
+            const container = document.getElementById('listsList');
+            container.innerHTML = '<p>Loading...</p>';
+
+            try {
+                const response = await fetch(`/config/clickup/lists/${spaceId}`);
+                if (!response.ok) throw new Error('Failed to load lists');
+
+                const lists = await response.json();
+                if (lists.length === 0) {
+                    container.innerHTML = '<p style="color: #666;">No lists found</p>';
+                    return;
+                }
+
+                let html = '<div style="max-height: 200px; overflow-y: auto; border: 1px solid #ddd; border-radius: 4px; padding: 10px;">';
+                lists.forEach(list => {
+                    html += `<div style="padding: 8px; margin: 4px 0; background: #f8f9fa; border-radius: 4px; cursor: pointer;"
+                                  onclick="selectList('${list.id}', '${list.name}')">
+                                <strong>${list.name}</strong><br>
+                                <small style="color: #666;">ID: ${list.id}</small>
+                             </div>`;
+                });
+                html += '</div>';
+                container.innerHTML = html;
+            } catch (error) {
+                container.innerHTML = `<p style="color: red;">Error: ${error.message}</p>`;
+            }
+        }
+
+        function selectList(id, name) {
+            document.getElementById('clickupListId').value = id;
+            document.getElementById('listsList').innerHTML =
+                `<p style="color: green;">✅ Selected: ${name}</p>`;
+        }
+    </script>
 </body>
 </html>
 

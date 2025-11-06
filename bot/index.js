@@ -18,11 +18,13 @@ const dayoffCommand = require('./commands/dayoff');
 const helpCommand = require('./commands/help');
 const adminCommands = require('./commands/admin');
 const adminAttendanceCommands = require('./commands/admin-attendance');
+const taskCommands = require('./commands/tasks');
 
 // Import flows
 const arrivalFlow = require('./flows/arrival');
 const departureFlow = require('./flows/departure');
 const moderationFlow = require('./flows/moderation');
+const taskFlows = require('./flows/tasks');
 
 // Import schedulers
 const { startSchedulers } = require('./schedulers');
@@ -53,6 +55,12 @@ function configureBot(bot) {
   bot.command('dayoff', dayoffCommand.dayoff);
   bot.command('help', helpCommand);
 
+  // Task management commands
+  bot.command('newtask', taskCommands.newTask);
+  bot.command('tasks', taskCommands.listTasks);
+  bot.command('mytasks', taskCommands.myTasks);
+  bot.hears(/^\/task_(.+)/, taskCommands.viewTask);
+
   // Admin commands
   bot.command('teamstatus', adminCommands.teamStatus);
   bot.command('pending', adminCommands.pending);
@@ -69,6 +77,17 @@ function configureBot(bot) {
 
     // Skip if it's a command
     if (text.startsWith('/')) return;
+
+    // Handle task creation/editing flows
+    if (ctx.session.taskCreation) {
+      return taskFlows.handleTaskCreationStep(ctx, prisma);
+    }
+    if (ctx.session.taskEdit && ctx.session.taskEdit.field) {
+      return taskFlows.handleTaskEditValueUpdate(ctx, prisma);
+    }
+    if (ctx.session.subtaskCreation) {
+      return taskCommands.handleSubtaskCreationStep(ctx, prisma);
+    }
 
     const telegramUserId = BigInt(ctx.from.id);
 
@@ -321,6 +340,41 @@ function configureBot(bot) {
   });
 
   // Handle callback queries (inline keyboard buttons)
+  bot.action(/^task_status_(.+)/, (ctx) => taskFlows.handleTaskStatusCallback(ctx, prisma));
+  bot.action(/^task_assign_(.+)/, (ctx) => taskFlows.handleTaskAssigneeCallback(ctx, prisma));
+  bot.action(/^edittask_(.+)/, (ctx) => taskCommands.handleEditTaskCallback(ctx, prisma));
+  bot.action(/^edit_(.+)_(.+)/, (ctx) => taskFlows.handleTaskEditCallback(ctx, prisma));
+  bot.action(/^editstatus_(.+)_(.+)/, async (ctx) => {
+    const [taskId, status] = ctx.match.slice(1);
+    await ctx.answerCbQuery();
+    const ClickUpService = require('../services/clickup');
+    const settings = await prisma.botSettings.findFirst();
+    const clickup = new ClickUpService(settings.clickupApiToken);
+    await clickup.updateTask(taskId, { status });
+    await ctx.editMessageText(`✅ Status updated to: ${status}`);
+    const { startTaskEditFlow } = require('./flows/tasks');
+    return startTaskEditFlow(ctx, prisma, taskId);
+  });
+  bot.action(/^editassign_(.+)_(.+)/, async (ctx) => {
+    const [taskId, assigneeId] = ctx.match.slice(1);
+    await ctx.answerCbQuery();
+    const ClickUpService = require('../services/clickup');
+    const settings = await prisma.botSettings.findFirst();
+    const clickup = new ClickUpService(settings.clickupApiToken);
+    if (assigneeId === 'unassign') {
+      await clickup.updateTask(taskId, { assignees: { add: [], rem: [] } });
+      await ctx.editMessageText('✅ Task unassigned');
+    } else {
+      await clickup.updateTask(taskId, { assignees: { add: [assigneeId], rem: [] } });
+      await ctx.editMessageText('✅ Assignee updated');
+    }
+    const { startTaskEditFlow } = require('./flows/tasks');
+    return startTaskEditFlow(ctx, prisma, taskId);
+  });
+  bot.action(/^addsubtask_(.+)/, (ctx) => taskCommands.handleAddSubtaskCallback(ctx, prisma));
+  bot.action(/^subtask_assign_(.+)_(.+)/, (ctx) => taskCommands.handleSubtaskAssigneeCallback(ctx, prisma));
+  bot.action(/^deletetask_(.+)_(.+)/, (ctx) => taskCommands.handleDeleteTaskCallback(ctx, prisma));
+
   bot.on('callback_query', async (ctx) => {
     const data = ctx.callbackQuery.data;
     console.log(`Callback received: ${data}`);

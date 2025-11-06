@@ -41,6 +41,17 @@ module.exports = async (ctx) => {
     helpMessage += `   Example: /vacation 2025-12-20 2025-12-25\n\n`;
     helpMessage += `/sick - Report sick day for tomorrow\n`;
     helpMessage += `/dayoff - Request a single day off\n\n`;
+
+    // Check if ClickUp is enabled
+    const settings = await prisma.botSettings.findFirst();
+    if (settings?.clickupEnabled) {
+      helpMessage += `📝 Task Management:\n`;
+      helpMessage += `/newtask - Create a new task\n`;
+      helpMessage += `/tasks - View all tasks\n`;
+      helpMessage += `/mytasks - View your assigned tasks\n`;
+      helpMessage += `/task_[id] - View task details\n\n`;
+    }
+
     helpMessage += `/help - Show this help message\n`;
 
     // Admin commands (only show if user is admin)
