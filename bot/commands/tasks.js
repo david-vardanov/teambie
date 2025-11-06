@@ -32,17 +32,26 @@ async function newTask(ctx) {
 async function listTasks(ctx) {
   const prisma = ctx.prisma;
   try {
+    console.log('/tasks command called');
     const settings = await prisma.botSettings.findFirst();
 
     if (!settings?.clickupEnabled || !settings?.clickupApiToken) {
-      return ctx.reply('❌ ClickUp integration is not enabled.');
+      console.log('ClickUp not enabled or no API token');
+      return ctx.reply('❌ ClickUp integration is not enabled. Contact your admin.');
     }
 
+    if (!settings?.clickupListId) {
+      console.log('ClickUp list ID not configured');
+      return ctx.reply('❌ ClickUp List ID is not configured. Contact your admin to set it in Settings.');
+    }
+
+    console.log('Fetching tasks from ClickUp list:', settings.clickupListId);
     const clickup = new ClickUpService(settings.clickupApiToken);
     const tasks = await clickup.getTasks(settings.clickupListId, {
       includeSubtasks: false, // Don't include subtasks in main list
       includeClosed: false
     });
+    console.log(`Found ${tasks.length} tasks`);
 
     if (tasks.length === 0) {
       return ctx.reply('📋 No tasks found.');
@@ -77,7 +86,12 @@ async function listTasks(ctx) {
     return ctx.reply(message, { parse_mode: 'Markdown' });
   } catch (error) {
     console.error('Error listing tasks:', error);
-    return ctx.reply('❌ Error fetching tasks: ' + error.message);
+    console.error('Error stack:', error.stack);
+    try {
+      return await ctx.reply('❌ Error fetching tasks: ' + error.message);
+    } catch (replyError) {
+      console.error('Failed to send error message:', replyError);
+    }
   }
 }
 

@@ -402,7 +402,13 @@ function configureBot(bot) {
   // Error handling
   bot.catch((err, ctx) => {
     console.error('Bot error:', err);
-    ctx.reply('Sorry, something went wrong. Please try again.');
+    console.error('Error stack:', err.stack);
+    console.error('Context update:', ctx.update);
+    try {
+      ctx.reply('Sorry, something went wrong. Please try again.');
+    } catch (replyError) {
+      console.error('Failed to send error reply:', replyError);
+    }
   });
 }
 
