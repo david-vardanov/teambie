@@ -377,7 +377,7 @@ body {
 .badge-late-left-early { background-color: #f39c12; }
 .badge-day-off-paid { background-color: #27ae60; }
 .badge-day-off-unpaid { background-color: #95a5a6; }
-.badge-start-working { background-color: #9b59b6; }
+.badge-start-working { background-color: #e91e63; }
 .badge-probation-finished { background-color: #1abc9c; }
 .badge-last-day { background-color: #34495e; }
 
@@ -1029,7 +1029,7 @@ h2 {
 }
 
 .calendar-table .event-indicator.badge-start-working {
-    background-color: #9b59b6;
+    background-color: #e91e63;
 }
 
 .calendar-table .event-indicator.badge-probation-finished {
