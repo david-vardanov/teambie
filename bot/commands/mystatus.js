@@ -1,4 +1,4 @@
-const { getEmployeeByTelegramId, getCurrentDate, getWorkHoursForToday, formatDate } = require('../utils/helpers');
+const { getEmployeeByTelegramId, getCurrentDate, getWorkHoursForToday, formatDate, isRecurringHomeOfficeDay } = require('../utils/helpers');
 
 /**
  * /mystatus command - Show employee's current settings and status
@@ -29,6 +29,40 @@ module.exports = async (ctx) => {
       }
     });
 
+    // Check for current/upcoming events
+    const startOfDay = new Date(todayDate);
+    startOfDay.setHours(0, 0, 0, 0);
+    const endOfDay = new Date(todayDate);
+    endOfDay.setHours(23, 59, 59, 999);
+
+    const currentEvents = await prisma.event.findMany({
+      where: {
+        employeeId: employee.id,
+        moderated: true,
+        startDate: { lte: endOfDay },
+        OR: [
+          { endDate: { gte: startOfDay } },
+          { endDate: null, startDate: { gte: startOfDay, lte: endOfDay } }
+        ]
+      },
+      orderBy: { startDate: 'asc' }
+    });
+
+    // Check for late arrival/early checkout events
+    const lateEarlyEvents = await prisma.event.findMany({
+      where: {
+        employeeId: employee.id,
+        moderated: true,
+        type: 'LATE_LEFT_EARLY',
+        startDate: { lte: endOfDay },
+        OR: [
+          { endDate: { gte: startOfDay } },
+          { endDate: null, startDate: { gte: startOfDay, lte: endOfDay } }
+        ]
+      },
+      orderBy: { startDate: 'asc' }
+    });
+
     // Build status message
     let message = `📊 Your Status - ${formatDate(today)}\n\n`;
     message += `👤 Name: ${employee.name}\n`;
@@ -50,6 +84,95 @@ module.exports = async (ctx) => {
     message += `\n📅 Leave Balance:\n`;
     message += `   Vacation days/year: ${employee.vacationDaysPerYear}\n`;
     message += `   Holiday days/year: ${employee.holidayDaysPerYear}\n`;
+
+    // Display current status
+    const todayEvents = currentEvents.filter(event => {
+      const eventStart = new Date(event.startDate);
+      const eventEnd = event.endDate ? new Date(event.endDate) : eventStart;
+      return eventStart <= endOfDay && eventEnd >= startOfDay;
+    });
+
+    if (todayEvents.length > 0 || isRecurringHomeOfficeDay(employee)) {
+      message += `\n📍 Current Status:\n`;
+
+      // Check for recurring home office
+      if (isRecurringHomeOfficeDay(employee)) {
+        message += `   🏠 Home Office (recurring)\n`;
+      }
+
+      // Display other events
+      for (const event of todayEvents) {
+        const eventStart = new Date(event.startDate);
+        const eventEnd = event.endDate ? new Date(event.endDate) : null;
+
+        let statusIcon = '📌';
+        let statusText = event.type.replace(/_/g, ' ').toLowerCase();
+
+        switch (event.type) {
+          case 'VACATION':
+            statusIcon = '🏖️';
+            statusText = 'Vacation';
+            break;
+          case 'SICK_DAY':
+            statusIcon = '🤒';
+            statusText = 'Sick Day';
+            break;
+          case 'HOLIDAY':
+            statusIcon = '🎉';
+            statusText = 'Holiday';
+            break;
+          case 'HOME_OFFICE':
+            statusIcon = '🏠';
+            statusText = 'Home Office';
+            break;
+          case 'DAY_OFF_PAID':
+            statusIcon = '🌴';
+            statusText = 'Day Off (Paid)';
+            break;
+          case 'DAY_OFF_UNPAID':
+            statusIcon = '🌴';
+            statusText = 'Day Off (Unpaid)';
+            break;
+        }
+
+        message += `   ${statusIcon} ${statusText}`;
+
+        // Add duration if multi-day
+        if (eventEnd && eventEnd > eventStart) {
+          const duration = Math.ceil((eventEnd - eventStart) / (1000 * 60 * 60 * 24)) + 1;
+          message += ` (${duration} days)`;
+        }
+
+        // Add location for holidays
+        if (event.type === 'HOLIDAY' && event.notes) {
+          message += ` - ${event.notes}`;
+        }
+
+        message += `\n`;
+      }
+    }
+
+    // Display late arrival/early checkout
+    if (lateEarlyEvents.length > 0) {
+      message += `\n⏱️ Schedule Adjustments:\n`;
+      for (const event of lateEarlyEvents) {
+        const eventStart = new Date(event.startDate);
+        const eventEnd = event.endDate ? new Date(event.endDate) : null;
+
+        message += `   🕐 Late Arrival/Early Checkout`;
+
+        if (eventEnd && eventEnd > eventStart) {
+          const duration = Math.ceil((eventEnd - eventStart) / (1000 * 60 * 60 * 24)) + 1;
+          message += ` (${duration} days)`;
+        }
+
+        if (event.notes) {
+          message += ` - ${event.notes}`;
+        }
+
+        message += `\n`;
+      }
+    }
 
     if (checkIn) {
       message += `\n✅ Today's Check-in:\n`;

@@ -1304,3 +1304,211 @@ h2 {
         opacity: 1;
     }
 }
+
+/* ============================================
+   DRAG AND DROP STYLES
+   ============================================ */
+
+/* Draggable badges */
+.draggable-badge {
+    cursor: grab;
+    transition: all 0.2s ease;
+    user-select: none;
+}
+
+.draggable-badge:hover {
+    transform: scale(1.05);
+    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
+}
+
+.draggable-badge:active {
+    cursor: grabbing;
+}
+
+.draggable-badge.dragging {
+    opacity: 0.5;
+    transform: scale(0.95);
+}
+
+/* Drop target cells */
+.day-cell {
+    transition: all 0.2s ease;
+    position: relative;
+}
+
+.day-cell.drop-target {
+    background-color: rgba(52, 152, 219, 0.1) !important;
+    border: 2px solid #3498db;
+}
+
+.day-cell.drop-target-hover {
+    transform: scale(1.15);
+    z-index: 10;
+    box-shadow: 0 4px 12px rgba(52, 152, 219, 0.3);
+    background-color: rgba(52, 152, 219, 0.2) !important;
+}
+
+/* Success animation */
+.day-cell.drop-success {
+    animation: dropSuccess 0.6s ease;
+}
+
+@keyframes dropSuccess {
+    0% {
+        transform: scale(1);
+        background-color: inherit;
+    }
+    50% {
+        transform: scale(1.1);
+        background-color: rgba(39, 174, 96, 0.3);
+    }
+    100% {
+        transform: scale(1);
+        background-color: inherit;
+    }
+}
+
+/* Error animation */
+.day-cell.drop-error {
+    animation: dropError 0.6s ease;
+}
+
+@keyframes dropError {
+    0% {
+        transform: scale(1);
+        background-color: inherit;
+    }
+    25% {
+        transform: translateX(-5px);
+        background-color: rgba(231, 76, 60, 0.3);
+    }
+    50% {
+        transform: translateX(5px);
+    }
+    75% {
+        transform: translateX(-5px);
+    }
+    100% {
+        transform: translateX(0);
+        background-color: inherit;
+    }
+}
+
+/* Notification animations */
+@keyframes slideInRight {
+    from {
+        transform: translateX(100%);
+        opacity: 0;
+    }
+    to {
+        transform: translateX(0);
+        opacity: 1;
+    }
+}
+
+@keyframes slideOutRight {
+    from {
+        transform: translateX(0);
+        opacity: 1;
+    }
+    to {
+        transform: translateX(100%);
+        opacity: 0;
+    }
+}
+
+/* ============================================
+   CONTEXT MENU STYLES
+   ============================================ */
+
+.context-menu {
+    position: absolute;
+    background: white;
+    border-radius: 8px;
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15), 0 0 0 1px rgba(0, 0, 0, 0.1);
+    min-width: 220px;
+    max-width: 280px;
+    z-index: 10001;
+    opacity: 0;
+    visibility: hidden;
+    transform: scale(0.95) translateY(-10px);
+    transition: all 0.15s ease;
+    pointer-events: none;
+}
+
+.context-menu.active {
+    opacity: 1;
+    visibility: visible;
+    transform: scale(1) translateY(0);
+    pointer-events: all;
+}
+
+.context-menu-header {
+    padding: 1rem;
+    border-bottom: 1px solid #e0e0e0;
+    background: #f8f9fa;
+    border-radius: 8px 8px 0 0;
+}
+
+.context-menu-items {
+    list-style: none;
+    margin: 0;
+    padding: 0.5rem 0;
+}
+
+.context-menu-item {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    padding: 0.75rem 1rem;
+    cursor: pointer;
+    transition: background-color 0.15s ease;
+    color: #2c3e50;
+    font-size: 0.9rem;
+}
+
+.context-menu-item:hover {
+    background-color: #f0f0f0;
+}
+
+.context-menu-item:active {
+    background-color: #e0e0e0;
+}
+
+.context-menu-item svg {
+    width: 16px;
+    height: 16px;
+    flex-shrink: 0;
+}
+
+.context-menu-item span {
+    flex: 1;
+}
+
+.context-menu-item-danger {
+    color: #e74c3c;
+}
+
+.context-menu-item-danger:hover {
+    background-color: #fee;
+}
+
+.context-menu-item:first-child {
+    border-radius: 0;
+}
+
+.context-menu-item:last-child {
+    border-radius: 0 0 8px 8px;
+}
+
+/* Context menu animation */
+@keyframes contextMenuIn {
+    from {
+        opacity: 0;
+        transform: scale(0.95) translateY(-10px);
+    }
+    to {
+        opacity: 1;
+        transform: scale(1) translateY(0);
+    }
+}

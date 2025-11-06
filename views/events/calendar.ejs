@@ -15,13 +15,13 @@
 <div class="calendar-table-container">
     <div class="calendar-legend">
         <div class="legend-horizontal">
-            <span class="legend-item"><span class="badge badge-vacation">Vacation</span></span>
-            <span class="legend-item"><span class="badge badge-holiday">Holiday</span></span>
-            <span class="legend-item"><span class="badge badge-sick-day">Sick Day</span></span>
-            <span class="legend-item"><span class="badge badge-home-office">Home Office</span></span>
-            <span class="legend-item"><span class="badge badge-late-left-early">Late/Left Early</span></span>
-            <span class="legend-item"><span class="badge badge-day-off-paid">Day Off Paid</span></span>
-            <span class="legend-item"><span class="badge badge-day-off-unpaid">Day Off Unpaid</span></span>
+            <span class="legend-item"><span class="badge badge-vacation draggable-badge" draggable="true" data-event-type="VACATION">Vacation</span></span>
+            <span class="legend-item"><span class="badge badge-holiday draggable-badge" draggable="true" data-event-type="HOLIDAY">Holiday</span></span>
+            <span class="legend-item"><span class="badge badge-sick-day draggable-badge" draggable="true" data-event-type="SICK_DAY">Sick Day</span></span>
+            <span class="legend-item"><span class="badge badge-home-office draggable-badge" draggable="true" data-event-type="HOME_OFFICE">Home Office</span></span>
+            <span class="legend-item"><span class="badge badge-late-left-early draggable-badge" draggable="true" data-event-type="LATE_LEFT_EARLY">Late/Left Early</span></span>
+            <span class="legend-item"><span class="badge badge-day-off-paid draggable-badge" draggable="true" data-event-type="DAY_OFF_PAID">Day Off Paid</span></span>
+            <span class="legend-item"><span class="badge badge-day-off-unpaid draggable-badge" draggable="true" data-event-type="DAY_OFF_UNPAID">Day Off Unpaid</span></span>
         </div>
     </div>
 
@@ -104,7 +104,11 @@
                                             endDate: evt.endDate ? evt.endDate.toLocaleDateString() : evt.startDate.toLocaleDateString()
                                         }));
                                     %>
-                                    <td class="day-cell <%= cellClass %>" <% if (dayEvents.length > 0) { %>data-events='<%= JSON.stringify(eventsData) %>'<% } %>>
+                                    <td class="day-cell <%= cellClass %>"
+                                        data-employee-id="<%= emp.id %>"
+                                        data-employee-name="<%= emp.name %>"
+                                        data-date="<%= year %>-<%= (monthIndex + 1).toString().padStart(2, '0') %>-<%= day.toString().padStart(2, '0') %>"
+                                        <% if (dayEvents.length > 0) { %>data-events='<%= JSON.stringify(eventsData) %>'<% } %>>
                                         <% if (dayEvents.length > 0) { %>
                                             <div class="event-indicators-wrapper">
                                                 <% dayEvents.forEach((evt, idx) => {
@@ -184,6 +188,35 @@
     </div>
 </div>
 
+<!-- Context Menu -->
+<div class="context-menu" id="contextMenu">
+    <div class="context-menu-header" id="contextMenuHeader">
+        <!-- Event info will be inserted here -->
+    </div>
+    <ul class="context-menu-items">
+        <li class="context-menu-item" id="contextMenuEdit">
+            <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
+                <path d="M12.146.146a.5.5 0 0 1 .708 0l3 3a.5.5 0 0 1 0 .708l-10 10a.5.5 0 0 1-.168.11l-5 2a.5.5 0 0 1-.65-.65l2-5a.5.5 0 0 1 .11-.168l10-10zM11.207 2.5 13.5 4.793 14.793 3.5 12.5 1.207 11.207 2.5zm1.586 3L10.5 3.207 4 9.707V10h.5a.5.5 0 0 1 .5.5v.5h.5a.5.5 0 0 1 .5.5v.5h.293l6.5-6.5zm-9.761 5.175-.106.106-1.528 3.821 3.821-1.528.106-.106A.5.5 0 0 1 5 12.5V12h-.5a.5.5 0 0 1-.5-.5V11h-.5a.5.5 0 0 1-.468-.325z"/>
+            </svg>
+            <span>Edit Event</span>
+        </li>
+        <li class="context-menu-item context-menu-item-danger" id="contextMenuDelete">
+            <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
+                <path d="M5.5 5.5A.5.5 0 0 1 6 6v6a.5.5 0 0 1-1 0V6a.5.5 0 0 1 .5-.5zm2.5 0a.5.5 0 0 1 .5.5v6a.5.5 0 0 1-1 0V6a.5.5 0 0 1 .5-.5zm3 .5a.5.5 0 0 0-1 0v6a.5.5 0 0 0 1 0V6z"/>
+                <path fill-rule="evenodd" d="M14.5 3a1 1 0 0 1-1 1H13v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V4h-.5a1 1 0 0 1-1-1V2a1 1 0 0 1 1-1H6a1 1 0 0 1 1-1h2a1 1 0 0 1 1 1h3.5a1 1 0 0 1 1 1v1zM4.118 4 4 4.059V13a1 1 0 0 0 1 1h6a1 1 0 0 0 1-1V4.059L11.882 4H4.118zM2.5 3V2h11v1h-11z"/>
+            </svg>
+            <span>Delete Event</span>
+        </li>
+        <li class="context-menu-item" id="contextMenuViewAll">
+            <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
+                <path d="M16 8s-3-5.5-8-5.5S0 8 0 8s3 5.5 8 5.5S16 8 16 8zM1.173 8a13.133 13.133 0 0 1 1.66-2.043C4.12 4.668 5.88 3.5 8 3.5c2.12 0 3.879 1.168 5.168 2.457A13.133 13.133 0 0 1 14.828 8c-.058.087-.122.183-.195.288-.335.48-.83 1.12-1.465 1.755C11.879 11.332 10.119 12.5 8 12.5c-2.12 0-3.879-1.168-5.168-2.457A13.134 13.134 0 0 1 1.172 8z"/>
+                <path d="M8 5.5a2.5 2.5 0 1 0 0 5 2.5 2.5 0 0 0 0-5zM4.5 8a3.5 3.5 0 1 1 7 0 3.5 3.5 0 0 1-7 0z"/>
+            </svg>
+            <span>View All Events</span>
+        </li>
+    </ul>
+</div>
+
 <script>
 document.addEventListener('DOMContentLoaded', function() {
     const modal = document.getElementById('eventModal');
@@ -199,10 +232,10 @@ document.addEventListener('DOMContentLoaded', function() {
         tableWrapper.scrollLeft = Math.max(0, scrollLeft);
     }
 
-    // Event delegation for event indicators
+    // Event delegation for event indicators (left click)
     document.addEventListener('click', function(e) {
         const cell = e.target.closest('.day-cell.has-event');
-        if (cell) {
+        if (cell && !e.defaultPrevented) {
             e.preventDefault();
 
             // Get events data from cell
@@ -290,5 +323,389 @@ document.addEventListener('DOMContentLoaded', function() {
             closeModal();
         }
     });
+
+    // ============================================
+    // CONTEXT MENU FUNCTIONALITY
+    // ============================================
+
+    const contextMenu = document.getElementById('contextMenu');
+    const contextMenuHeader = document.getElementById('contextMenuHeader');
+    const contextMenuEdit = document.getElementById('contextMenuEdit');
+    const contextMenuDelete = document.getElementById('contextMenuDelete');
+    const contextMenuViewAll = document.getElementById('contextMenuViewAll');
+    let currentContextEvent = null;
+    let currentContextCell = null;
+
+    // Handle right-click on calendar cells
+    document.addEventListener('contextmenu', function(e) {
+        const cell = e.target.closest('.day-cell.has-event');
+
+        if (cell) {
+            e.preventDefault();
+
+            // Get events data from cell
+            const eventsData = cell.dataset.events;
+            if (!eventsData) return;
+
+            const events = JSON.parse(eventsData);
+
+            // If multiple events, show the first one in context menu (or enhance to show selector)
+            currentContextEvent = events[0];
+            currentContextCell = cell;
+
+            // Update context menu header
+            const formattedType = currentContextEvent.type.replace(/_/g, ' ');
+            const badgeClass = 'badge-' + currentContextEvent.type.toLowerCase().replace(/_/g, '-');
+
+            contextMenuHeader.innerHTML = `
+                <div style="display: flex; flex-direction: column; gap: 0.5rem;">
+                    <span class="badge ${badgeClass}" style="align-self: flex-start;">${formattedType}</span>
+                    <div style="font-size: 0.875rem; color: #666;">
+                        <strong>${currentContextEvent.employeeName}</strong>
+                    </div>
+                    <div style="font-size: 0.75rem; color: #999;">
+                        ${currentContextEvent.startDate}
+                    </div>
+                </div>
+            `;
+
+            // If multiple events, show indicator
+            if (events.length > 1) {
+                contextMenuHeader.innerHTML += `
+                    <div style="margin-top: 0.5rem; padding-top: 0.5rem; border-top: 1px solid #e0e0e0; font-size: 0.75rem; color: #999;">
+                        +${events.length - 1} more event${events.length > 2 ? 's' : ''}
+                    </div>
+                `;
+            }
+
+            // Position context menu at cursor
+            const menuWidth = 250;
+            const menuHeight = 200; // approximate
+            let x = e.pageX;
+            let y = e.pageY;
+
+            // Adjust if menu would go off-screen
+            if (x + menuWidth > window.innerWidth + window.scrollX) {
+                x = window.innerWidth + window.scrollX - menuWidth - 10;
+            }
+            if (y + menuHeight > window.innerHeight + window.scrollY) {
+                y = window.innerHeight + window.scrollY - menuHeight - 10;
+            }
+
+            contextMenu.style.left = x + 'px';
+            contextMenu.style.top = y + 'px';
+            contextMenu.classList.add('active');
+
+            // Prevent the regular click handler from firing
+            e.stopPropagation();
+        }
+    });
+
+    // Close context menu on click outside
+    document.addEventListener('click', function(e) {
+        if (!contextMenu.contains(e.target)) {
+            contextMenu.classList.remove('active');
+        }
+    });
+
+    // Close context menu on Escape key
+    document.addEventListener('keydown', function(e) {
+        if (e.key === 'Escape' && contextMenu.classList.contains('active')) {
+            contextMenu.classList.remove('active');
+        }
+    });
+
+    // Edit event handler
+    contextMenuEdit.addEventListener('click', function() {
+        if (currentContextEvent) {
+            window.location.href = `/events/${currentContextEvent.id}/edit`;
+        }
+        contextMenu.classList.remove('active');
+    });
+
+    // Delete event handler
+    contextMenuDelete.addEventListener('click', function() {
+        if (!currentContextEvent) return;
+
+        if (confirm(`Are you sure you want to delete this ${currentContextEvent.type.replace(/_/g, ' ')} event?`)) {
+            deleteEvent(currentContextEvent.id, currentContextCell);
+        }
+        contextMenu.classList.remove('active');
+    });
+
+    // View all events handler
+    contextMenuViewAll.addEventListener('click', function() {
+        if (currentContextCell) {
+            // Trigger the existing modal by simulating a click
+            currentContextCell.click();
+        }
+        contextMenu.classList.remove('active');
+    });
+
+    // Function to delete event via AJAX
+    function deleteEvent(eventId, cell) {
+        fetch(`/events/${eventId}`, {
+            method: 'DELETE',
+            headers: {
+                'Content-Type': 'application/json',
+            }
+        })
+        .then(response => {
+            if (!response.ok) {
+                throw new Error('Failed to delete event');
+            }
+            return response.json();
+        })
+        .then(data => {
+            // Success - remove visual indicator from the cell
+            const eventsData = cell.dataset.events ? JSON.parse(cell.dataset.events) : [];
+            const updatedEvents = eventsData.filter(e => e.id !== eventId);
+
+            if (updatedEvents.length === 0) {
+                // Remove all indicators
+                cell.classList.remove('has-event');
+                const wrapper = cell.querySelector('.event-indicators-wrapper');
+                if (wrapper) wrapper.remove();
+                delete cell.dataset.events;
+            } else {
+                // Update the data and recalculate indicator widths
+                cell.dataset.events = JSON.stringify(updatedEvents);
+
+                const wrapper = cell.querySelector('.event-indicators-wrapper');
+                if (wrapper) {
+                    // Rebuild indicators
+                    wrapper.innerHTML = '';
+                    updatedEvents.forEach(evt => {
+                        const badgeClass = 'badge-' + evt.type.toLowerCase().replace(/_/g, '-');
+                        const indicator = document.createElement('span');
+                        indicator.className = `event-indicator ${badgeClass}`;
+                        if (updatedEvents.length > 1) {
+                            indicator.style.width = `${100 / updatedEvents.length}%`;
+                        }
+                        wrapper.appendChild(indicator);
+                    });
+                }
+            }
+
+            // Show success animation
+            cell.classList.add('drop-success');
+            setTimeout(() => {
+                cell.classList.remove('drop-success');
+            }, 600);
+
+            showNotification('Event deleted successfully', 'success');
+        })
+        .catch(error => {
+            console.error('Error deleting event:', error);
+            showNotification('Failed to delete event. Please try again.', 'error');
+        });
+    }
+
+    // ============================================
+    // DRAG AND DROP FUNCTIONALITY
+    // ============================================
+
+    let draggedEventType = null;
+    let draggedBadgeClass = null;
+
+    // Handle drag start on legend badges
+    const draggableBadges = document.querySelectorAll('.draggable-badge');
+    draggableBadges.forEach(badge => {
+        badge.addEventListener('dragstart', function(e) {
+            draggedEventType = this.dataset.eventType;
+            // Get the badge class (e.g., 'badge-vacation')
+            const badgeClasses = Array.from(this.classList).find(cls => cls.startsWith('badge-') && cls !== 'badge');
+            draggedBadgeClass = badgeClasses;
+
+            // Set data for transfer
+            e.dataTransfer.effectAllowed = 'copy';
+            e.dataTransfer.setData('text/plain', draggedEventType);
+
+            // Add dragging class for visual feedback
+            this.classList.add('dragging');
+
+            // Create custom drag image (optional - badge will be default)
+            const dragImg = this.cloneNode(true);
+            dragImg.style.opacity = '0.8';
+            dragImg.style.transform = 'scale(1.1)';
+            document.body.appendChild(dragImg);
+            e.dataTransfer.setDragImage(dragImg, 40, 15);
+            setTimeout(() => document.body.removeChild(dragImg), 0);
+        });
+
+        badge.addEventListener('dragend', function(e) {
+            this.classList.remove('dragging');
+            // Remove all drop-target classes from cells
+            document.querySelectorAll('.day-cell').forEach(cell => {
+                cell.classList.remove('drop-target', 'drop-target-hover');
+            });
+        });
+
+        // Add cursor style on hover
+        badge.style.cursor = 'grab';
+        badge.addEventListener('mousedown', function() {
+            this.style.cursor = 'grabbing';
+        });
+        badge.addEventListener('mouseup', function() {
+            this.style.cursor = 'grab';
+        });
+    });
+
+    // Handle drag over calendar cells
+    const dayCells = document.querySelectorAll('.day-cell');
+    dayCells.forEach(cell => {
+        cell.addEventListener('dragover', function(e) {
+            e.preventDefault();
+            e.dataTransfer.dropEffect = 'copy';
+
+            // Add hover effect
+            if (!this.classList.contains('drop-target-hover')) {
+                this.classList.add('drop-target', 'drop-target-hover');
+            }
+        });
+
+        cell.addEventListener('dragenter', function(e) {
+            e.preventDefault();
+            this.classList.add('drop-target');
+        });
+
+        cell.addEventListener('dragleave', function(e) {
+            // Only remove if we're actually leaving the cell (not entering a child)
+            if (e.target === this) {
+                this.classList.remove('drop-target', 'drop-target-hover');
+            }
+        });
+
+        cell.addEventListener('drop', function(e) {
+            e.preventDefault();
+            this.classList.remove('drop-target', 'drop-target-hover');
+
+            const employeeId = this.dataset.employeeId;
+            const employeeName = this.dataset.employeeName;
+            const date = this.dataset.date;
+
+            if (!employeeId || !date || !draggedEventType) {
+                return;
+            }
+
+            // Add visual feedback immediately
+            this.classList.add('drop-success');
+
+            // Create the event via AJAX
+            createEvent(employeeId, employeeName, date, draggedEventType, draggedBadgeClass, this);
+        });
+    });
+
+    // Function to create event via AJAX
+    function createEvent(employeeId, employeeName, date, eventType, badgeClass, cell) {
+        fetch('/events', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+                employeeId: employeeId,
+                type: eventType,
+                startDate: date,
+                endDate: date,
+                notes: 'Created via drag & drop'
+            })
+        })
+        .then(response => {
+            if (!response.ok) {
+                throw new Error('Failed to create event');
+            }
+            return response.json();
+        })
+        .then(data => {
+            // Success - add visual indicator to the cell
+            const existingWrapper = cell.querySelector('.event-indicators-wrapper');
+
+            if (existingWrapper) {
+                // Add to existing indicators
+                const indicator = document.createElement('span');
+                indicator.className = `event-indicator ${badgeClass}`;
+
+                // Recalculate widths
+                const allIndicators = existingWrapper.querySelectorAll('.event-indicator');
+                const newCount = allIndicators.length + 1;
+                allIndicators.forEach(ind => {
+                    ind.style.width = `${100 / newCount}%`;
+                });
+                indicator.style.width = `${100 / newCount}%`;
+
+                existingWrapper.appendChild(indicator);
+            } else {
+                // Create new wrapper and indicator
+                const wrapper = document.createElement('div');
+                wrapper.className = 'event-indicators-wrapper';
+
+                const indicator = document.createElement('span');
+                indicator.className = `event-indicator ${badgeClass}`;
+
+                wrapper.appendChild(indicator);
+                cell.appendChild(wrapper);
+                cell.classList.add('has-event');
+            }
+
+            // Update data-events attribute
+            const currentEvents = cell.dataset.events ? JSON.parse(cell.dataset.events) : [];
+            currentEvents.push({
+                id: data.id,
+                type: eventType,
+                employeeName: employeeName,
+                notes: 'Created via drag & drop',
+                startDate: new Date(date).toLocaleDateString(),
+                endDate: new Date(date).toLocaleDateString()
+            });
+            cell.dataset.events = JSON.stringify(currentEvents);
+
+            // Remove success animation after delay
+            setTimeout(() => {
+                cell.classList.remove('drop-success');
+            }, 600);
+
+            // Show success message
+            showNotification(`${eventType.replace(/_/g, ' ')} added for ${employeeName} on ${new Date(date).toLocaleDateString()}`, 'success');
+        })
+        .catch(error => {
+            console.error('Error creating event:', error);
+            cell.classList.remove('drop-success');
+            cell.classList.add('drop-error');
+            setTimeout(() => {
+                cell.classList.remove('drop-error');
+            }, 600);
+            showNotification('Failed to create event. Please try again.', 'error');
+        });
+    }
+
+    // Simple notification system
+    function showNotification(message, type = 'info') {
+        const notification = document.createElement('div');
+        notification.className = `notification notification-${type}`;
+        notification.textContent = message;
+        notification.style.cssText = `
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            padding: 1rem 1.5rem;
+            background: ${type === 'success' ? '#27ae60' : type === 'error' ? '#e74c3c' : '#3498db'};
+            color: white;
+            border-radius: 4px;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+            z-index: 10000;
+            animation: slideInRight 0.3s ease-out;
+            max-width: 400px;
+        `;
+
+        document.body.appendChild(notification);
+
+        setTimeout(() => {
+            notification.style.animation = 'slideOutRight 0.3s ease-in';
+            setTimeout(() => {
+                document.body.removeChild(notification);
+            }, 300);
+        }, 3000);
+    }
 });
 </script>

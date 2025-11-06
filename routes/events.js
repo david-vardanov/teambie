@@ -734,7 +734,7 @@ router.post('/', async (req, res) => {
     const { employeeId, type, startDate, endDate, notes } = req.body;
     const isAdmin = req.session.userRole === 'ADMIN';
 
-    await prisma.event.create({
+    const event = await prisma.event.create({
       data: {
         employeeId: parseInt(employeeId),
         type,
@@ -764,9 +764,27 @@ router.post('/', async (req, res) => {
       }
     }
 
+    // Check if request is AJAX (JSON)
+    if (req.headers['content-type'] === 'application/json' || req.xhr || req.headers.accept?.includes('application/json')) {
+      return res.json({
+        success: true,
+        id: event.id,
+        message: 'Event created successfully'
+      });
+    }
+
     res.redirect('/events/calendar');
   } catch (error) {
     console.error(error);
+
+    // Return JSON error for AJAX requests
+    if (req.headers['content-type'] === 'application/json' || req.xhr || req.headers.accept?.includes('application/json')) {
+      return res.status(500).json({
+        success: false,
+        message: 'Failed to create event'
+      });
+    }
+
     res.status(500).send('Server Error');
   }
 });
@@ -970,9 +988,27 @@ router.delete('/:id', async (req, res) => {
     await prisma.event.delete({
       where: { id: parseInt(req.params.id) }
     });
+
+    // Check if request is AJAX (JSON)
+    if (req.headers['content-type'] === 'application/json' || req.xhr || req.headers.accept?.includes('application/json')) {
+      return res.json({
+        success: true,
+        message: 'Event deleted successfully'
+      });
+    }
+
     res.redirect('/events/calendar');
   } catch (error) {
     console.error(error);
+
+    // Return JSON error for AJAX requests
+    if (req.headers['content-type'] === 'application/json' || req.xhr || req.headers.accept?.includes('application/json')) {
+      return res.status(500).json({
+        success: false,
+        message: 'Failed to delete event'
+      });
+    }
+
     res.status(500).send('Server Error');
   }
 });

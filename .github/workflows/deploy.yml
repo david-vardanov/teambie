@@ -27,6 +27,6 @@ jobs:
             npm install
             npx prisma generate
             npx prisma migrate deploy
-            pm2 start all
+            pm2 restart all
             pm2 status
             echo "✅ Deployment completed successfully!"

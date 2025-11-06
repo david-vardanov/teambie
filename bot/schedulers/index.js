@@ -405,20 +405,22 @@ async function sendMorningReport(bot, prisma) {
     const today = getCurrentDate();
     const todayDate = new Date(today);
 
-    // Get admin emails to exclude them
+    // Get admin emails to exclude them (normalize to lowercase)
     const adminUsers = await prisma.user.findMany({
       where: { role: 'ADMIN' },
       select: { email: true }
     });
-    const adminEmails = adminUsers.map(a => a.email);
+    const adminEmails = adminUsers.map(a => a.email.toLowerCase().trim());
 
-    // Get all active employees (excluding admins)
-    const employees = await prisma.employee.findMany({
-      where: {
-        archived: false,
-        email: { notIn: adminEmails }
-      }
+    // Get all active employees
+    const allEmployees = await prisma.employee.findMany({
+      where: { archived: false }
     });
+
+    // Filter out admins by comparing emails (case-insensitive)
+    const employees = allEmployees.filter(emp =>
+      !adminEmails.includes(emp.email.toLowerCase().trim())
+    );
 
     let expectedInOffice = 0;
     let homeOffice = [];
@@ -495,35 +497,37 @@ async function sendEndOfDayReport(bot, prisma) {
     const today = getCurrentDate();
     const todayDate = new Date(today);
 
-    // Get admin emails to exclude them
+    // Get admin emails to exclude them (normalize to lowercase)
     const adminUsers = await prisma.user.findMany({
       where: { role: 'ADMIN' },
       select: { email: true }
     });
-    const adminEmails = adminUsers.map(a => a.email);
+    const adminEmails = adminUsers.map(a => a.email.toLowerCase().trim());
 
-    // Get all check-ins for today (excluding admins)
-    const checkIns = await prisma.attendanceCheckIn.findMany({
-      where: {
-        date: todayDate,
-        employee: {
-          email: { notIn: adminEmails }
-        }
-      },
+    // Get all check-ins for today
+    const allCheckIns = await prisma.attendanceCheckIn.findMany({
+      where: { date: todayDate },
       include: { employee: true }
     });
 
-    // Get late/early leave events for today (excluding admins)
-    const lateEarlyEvents = await prisma.event.findMany({
+    // Filter out admins by comparing emails (case-insensitive)
+    const checkIns = allCheckIns.filter(c =>
+      !adminEmails.includes(c.employee.email.toLowerCase().trim())
+    );
+
+    // Get late/early leave events for today
+    const allLateEarlyEvents = await prisma.event.findMany({
       where: {
         type: 'LATE_LEFT_EARLY',
-        startDate: todayDate,
-        employee: {
-          email: { notIn: adminEmails }
-        }
+        startDate: todayDate
       },
       include: { employee: true }
     });
+
+    // Filter out admins by comparing emails (case-insensitive)
+    const lateEarlyEvents = allLateEarlyEvents.filter(e =>
+      e.employee && !adminEmails.includes(e.employee.email.toLowerCase().trim())
+    );
 
     const totalExpected = checkIns.length;
     const arrived = checkIns.filter(c => c.status === 'ARRIVED' || c.status === 'LEFT').length;
@@ -587,40 +591,46 @@ async function sendWeeklyReport(bot, prisma) {
     lastSunday.setDate(lastMonday.getDate() + 6);
     lastSunday.setHours(23, 59, 59, 999);
 
-    // Get admin emails to exclude them
+    // Get admin emails to exclude them (normalize to lowercase)
     const adminUsers = await prisma.user.findMany({
       where: { role: 'ADMIN' },
       select: { email: true }
     });
-    const adminEmails = adminUsers.map(a => a.email);
+    const adminEmails = adminUsers.map(a => a.email.toLowerCase().trim());
 
-    // Get check-ins for last week (excluding admins)
-    const checkIns = await prisma.attendanceCheckIn.findMany({
+    // Get check-ins for last week
+    const allCheckIns = await prisma.attendanceCheckIn.findMany({
       where: {
         date: {
           gte: lastMonday,
           lte: lastSunday
-        },
-        employee: {
-          email: { notIn: adminEmails }
         }
-      }
+      },
+      include: { employee: true }
     });
 
-    // Get events for last week (excluding admins)
-    const events = await prisma.event.findMany({
+    // Filter out admins by comparing emails (case-insensitive)
+    const checkIns = allCheckIns.filter(c =>
+      !adminEmails.includes(c.employee.email.toLowerCase().trim())
+    );
+
+    // Get events for last week
+    const allEvents = await prisma.event.findMany({
       where: {
         moderated: true,
         startDate: { lte: lastSunday },
         OR: [
           { endDate: { gte: lastMonday } },
           { endDate: null }
-        ],
-        employee: {
-          email: { notIn: adminEmails }
-        }
-      }
+        ]
+      },
+      include: { employee: true }
     });
+
+    // Filter out admins by comparing emails (case-insensitive)
+    const events = allEvents.filter(e =>
+      e.employee && !adminEmails.includes(e.employee.email.toLowerCase().trim())
+    );
 
     const totalCheckIns = checkIns.length;
     const arrived = checkIns.filter(c => c.status === 'ARRIVED' || c.status === 'LEFT').length;
