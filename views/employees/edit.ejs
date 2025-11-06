@@ -31,28 +31,9 @@
     <% } else { %>
     <div style="padding: 15px; background-color: #fff9e6; border-left: 4px solid #ffc107; border-radius: 5px; margin-bottom: 15px;">
         <h4 style="margin-top: 0; color: #856404;">⚠️ No User Account</h4>
-        <p style="color: #856404; margin-bottom: 15px;">
-            This employee doesn't have login credentials yet. Create a user account below to enable system access.
+        <p style="color: #856404; margin-bottom: 0;">
+            This employee doesn't have login credentials yet. Save this form first, then use the "Create User Account" section below.
         </p>
-        <form action="/employees/<%= employee.id %>/create-user" method="POST" style="margin: 0;">
-            <div style="margin-bottom: 15px;">
-                <label style="display: block; margin-bottom: 5px; font-weight: 600;">Password:</label>
-                <input type="password" name="password" required minlength="6"
-                       placeholder="Enter password (min 6 characters)"
-                       style="width: 100%; padding: 8px; border: 1px solid #ccc; border-radius: 4px;">
-            </div>
-            <div style="margin-bottom: 15px;">
-                <label style="display: block; margin-bottom: 5px; font-weight: 600;">Role:</label>
-                <select name="role" style="width: 100%; padding: 8px; border: 1px solid #ccc; border-radius: 4px;">
-                    <option value="EMPLOYEE">Employee</option>
-                    <option value="ADMIN">Admin</option>
-                </select>
-                <small style="color: #666; display: block; margin-top: 5px;">
-                    Admin: Full access to all features | Employee: Limited access
-                </small>
-            </div>
-            <button type="submit" class="btn btn-primary">Create User Account</button>
-        </form>
     </div>
     <% } %>
 
@@ -135,6 +116,36 @@
         <a href="/employees/<%= employee.id %>" class="btn btn-secondary">Cancel</a>
     </div>
 </form>
+
+<% if (!linkedUser) { %>
+<div class="card" style="margin-top: 30px;">
+    <div class="card-body">
+        <h3>Create User Account</h3>
+        <p style="color: #666;">After creating employee details above, use this form to give them system login access.</p>
+
+        <form action="/employees/<%= employee.id %>/create-user" method="POST">
+            <div class="form-group">
+                <label for="userPassword">Password</label>
+                <input type="password" name="password" id="userPassword" required minlength="6"
+                       placeholder="Enter password (min 6 characters)">
+            </div>
+
+            <div class="form-group">
+                <label for="userRole">Role</label>
+                <select name="role" id="userRole">
+                    <option value="EMPLOYEE">Employee</option>
+                    <option value="ADMIN">Admin</option>
+                </select>
+                <small style="color: #666;">
+                    Admin: Full access to all features | Employee: Limited access
+                </small>
+            </div>
+
+            <button type="submit" class="btn btn-primary">Create User Account</button>
+        </form>
+    </div>
+</div>
+<% } %>
 
 <form action="/employees/<%= employee.id %>?_method=DELETE" method="POST" style="margin-top: 20px;">
     <button type="submit" class="btn btn-danger" onclick="return confirm('Are you sure you want to delete this employee? All associated events will also be deleted.')">Delete Employee</button>
