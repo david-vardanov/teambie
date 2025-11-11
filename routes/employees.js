@@ -623,6 +623,52 @@ router.post('/:id/clickup/unregister-webhook', async (req, res) => {
   }
 });
 
+// Auto-detect ClickUp User ID by email
+router.post('/:id/clickup/auto-detect-userid', async (req, res) => {
+  try {
+    const employee = await prisma.employee.findUnique({
+      where: { id: parseInt(req.params.id) }
+    });
+
+    if (!employee?.clickupApiToken || !employee?.clickupWorkspaceId) {
+      return res.status(400).json({ error: 'ClickUp API token and workspace ID required' });
+    }
+
+    const ClickUpService = require('../services/clickup');
+    const clickup = new ClickUpService(employee.clickupApiToken);
+
+    // Get workspace members
+    const members = await clickup.getWorkspaceMembers(employee.clickupWorkspaceId);
+
+    // Find member by email
+    const member = members.find(m =>
+      m.user.email && m.user.email.toLowerCase() === employee.email.toLowerCase()
+    );
+
+    if (!member) {
+      return res.status(404).json({
+        error: 'No ClickUp user found with email: ' + employee.email,
+        hint: 'Make sure your employee email matches your ClickUp account email'
+      });
+    }
+
+    // Update employee with the user ID
+    await prisma.employee.update({
+      where: { id: employee.id },
+      data: { clickupUserId: member.user.id.toString() }
+    });
+
+    res.json({
+      success: true,
+      userId: member.user.id.toString(),
+      username: member.user.username
+    });
+  } catch (error) {
+    console.error('Error auto-detecting user ID:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
 // ClickUp API routes for employee configuration
 router.get('/:id/clickup/workspaces', async (req, res) => {
   try {

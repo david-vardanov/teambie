@@ -133,10 +133,23 @@
 
         <div class="form-group">
             <label for="clickupUserId">ClickUp User ID</label>
-            <input type="text" name="clickupUserId" id="clickupUserId"
-                   value="<%= employee.clickupUserId || '' %>"
-                   placeholder="Enter ClickUp user ID">
-            <small style="color: #666;">Get from ClickUp workspace members or leave empty to auto-match by email</small>
+            <div style="display: flex; gap: 10px; align-items: flex-start;">
+                <input type="text" name="clickupUserId" id="clickupUserId"
+                       value="<%= employee.clickupUserId || '' %>"
+                       placeholder="Enter ClickUp user ID"
+                       style="flex: 1;">
+                <button type="button" class="btn btn-secondary" onclick="autoDetectUserId()"
+                        <%= !employee.clickupApiToken || !employee.clickupWorkspaceId ? 'disabled' : '' %>>
+                    Auto-Detect User ID
+                </button>
+            </div>
+            <div id="userIdResult" style="margin-top: 8px;"></div>
+            <small style="color: #666;">Your ClickUp user ID will be auto-detected from workspace members by matching your email</small>
+            <% if (!employee.clickupApiToken || !employee.clickupWorkspaceId) { %>
+                <small style="color: #856404; display: block; margin-top: 5px;">
+                    Configure API token and workspace first, then save before auto-detecting
+                </small>
+            <% } %>
         </div>
 
         <div class="form-group">
@@ -407,6 +420,41 @@
             }
         } catch (error) {
             alert('❌ Error: ' + error.message);
+        }
+    }
+
+    async function autoDetectUserId() {
+        const container = document.getElementById('userIdResult');
+        const workspaceId = document.getElementById('clickupWorkspaceId').value;
+
+        if (!workspaceId) {
+            container.innerHTML = '<p style="color: #dc3545; margin: 0;">⚠️ Please select a workspace first</p>';
+            return;
+        }
+
+        container.innerHTML = '<p style="color: #0066cc; margin: 0;">🔍 Detecting your User ID from workspace members...</p>';
+
+        try {
+            const response = await fetch('/employees/<%= employee.id %>/clickup/auto-detect-userid', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                }
+            });
+
+            const result = await response.json();
+
+            if (response.ok && result.success) {
+                document.getElementById('clickupUserId').value = result.userId;
+                container.innerHTML = `<p style="color: #28a745; margin: 0;">✅ Found: <strong>${result.username || 'User'}</strong> (ID: ${result.userId})</p>`;
+            } else {
+                container.innerHTML = `<p style="color: #dc3545; margin: 0;">❌ ${result.error || 'Failed to detect user ID'}</p>`;
+                if (result.hint) {
+                    container.innerHTML += `<p style="color: #856404; margin: 5px 0 0 0; font-size: 13px;">${result.hint}</p>`;
+                }
+            }
+        } catch (error) {
+            container.innerHTML = `<p style="color: #dc3545; margin: 0;">❌ Error: ${error.message}</p>`;
         }
     }
 </script>
