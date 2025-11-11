@@ -48,6 +48,7 @@ model Employee {
   recurringHomeOfficeDays   Int[]               @default([])
 
   // ClickUp integration
+  clickupApiToken           String?             // Employee's personal ClickUp API token
   clickupUserId             String?             @unique
   clickupWorkspaceId        String?
   clickupSpaceId            String?

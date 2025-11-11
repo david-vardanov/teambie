@@ -243,6 +243,7 @@ router.put('/:id', async (req, res) => {
       workHoursOnFriday,
       recurringHomeOfficeDays,
       role,
+      clickupApiToken,
       clickupUserId,
       clickupWorkspaceId,
       clickupSpaceId,
@@ -258,6 +259,14 @@ router.put('/:id', async (req, res) => {
         homeOfficeDays = [parseInt(recurringHomeOfficeDays)];
       }
     }
+
+    // Get existing employee for token masking logic
+    const existingEmployee = await prisma.employee.findUnique({
+      where: { id: parseInt(req.params.id) }
+    });
+
+    // Don't save masked token - keep existing if token contains "..."
+    const isMaskedClickUp = clickupApiToken && clickupApiToken.includes('...');
 
     // Update employee
     const employee = await prisma.employee.update({
@@ -275,6 +284,7 @@ router.put('/:id', async (req, res) => {
         halfDayOnFridays: halfDayOnFridays === 'on' || halfDayOnFridays === true,
         workHoursOnFriday: parseInt(workHoursOnFriday) || 8,
         recurringHomeOfficeDays: homeOfficeDays,
+        clickupApiToken: isMaskedClickUp ? existingEmployee.clickupApiToken : (clickupApiToken || null),
         clickupUserId: clickupUserId || null,
         clickupWorkspaceId: clickupWorkspaceId || null,
         clickupSpaceId: clickupSpaceId || null,
@@ -529,13 +539,12 @@ router.post('/:id/clickup/register-webhook', async (req, res) => {
       return res.status(400).json({ error: 'Employee ClickUp configuration incomplete' });
     }
 
-    const botSettings = await prisma.botSettings.findFirst();
-    if (!botSettings?.clickupApiToken) {
-      return res.status(400).json({ error: 'ClickUp API token not configured' });
+    if (!employee.clickupApiToken) {
+      return res.status(400).json({ error: 'Employee ClickUp API token not configured' });
     }
 
     const ClickUpService = require('../services/clickup');
-    const clickup = new ClickUpService(botSettings.clickupApiToken);
+    const clickup = new ClickUpService(employee.clickupApiToken);
 
     // Delete existing webhook if any
     if (employee.clickupWebhookId) {
@@ -592,13 +601,12 @@ router.post('/:id/clickup/unregister-webhook', async (req, res) => {
       return res.status(400).json({ error: 'No webhook registered' });
     }
 
-    const botSettings = await prisma.botSettings.findFirst();
-    if (!botSettings?.clickupApiToken) {
-      return res.status(400).json({ error: 'ClickUp API token not configured' });
+    if (!employee.clickupApiToken) {
+      return res.status(400).json({ error: 'Employee ClickUp API token not configured' });
     }
 
     const ClickUpService = require('../services/clickup');
-    const clickup = new ClickUpService(botSettings.clickupApiToken);
+    const clickup = new ClickUpService(employee.clickupApiToken);
 
     await clickup.deleteWebhook(employee.clickupWebhookId);
 
@@ -618,13 +626,16 @@ router.post('/:id/clickup/unregister-webhook', async (req, res) => {
 // ClickUp API routes for employee configuration
 router.get('/:id/clickup/workspaces', async (req, res) => {
   try {
-    const botSettings = await prisma.botSettings.findFirst();
-    if (!botSettings?.clickupApiToken) {
-      return res.status(400).json({ error: 'ClickUp API token not configured' });
+    const employee = await prisma.employee.findUnique({
+      where: { id: parseInt(req.params.id) }
+    });
+
+    if (!employee?.clickupApiToken) {
+      return res.status(400).json({ error: 'Employee ClickUp API token not configured' });
     }
 
     const ClickUpService = require('../services/clickup');
-    const clickup = new ClickUpService(botSettings.clickupApiToken);
+    const clickup = new ClickUpService(employee.clickupApiToken);
     const workspaces = await clickup.getWorkspaces();
     res.json(workspaces);
   } catch (error) {
@@ -635,13 +646,16 @@ router.get('/:id/clickup/workspaces', async (req, res) => {
 
 router.get('/:id/clickup/spaces/:workspaceId', async (req, res) => {
   try {
-    const botSettings = await prisma.botSettings.findFirst();
-    if (!botSettings?.clickupApiToken) {
-      return res.status(400).json({ error: 'ClickUp API token not configured' });
+    const employee = await prisma.employee.findUnique({
+      where: { id: parseInt(req.params.id) }
+    });
+
+    if (!employee?.clickupApiToken) {
+      return res.status(400).json({ error: 'Employee ClickUp API token not configured' });
     }
 
     const ClickUpService = require('../services/clickup');
-    const clickup = new ClickUpService(botSettings.clickupApiToken);
+    const clickup = new ClickUpService(employee.clickupApiToken);
     const spaces = await clickup.getSpaces(req.params.workspaceId);
     res.json(spaces);
   } catch (error) {
@@ -652,13 +666,16 @@ router.get('/:id/clickup/spaces/:workspaceId', async (req, res) => {
 
 router.get('/:id/clickup/lists/:spaceId', async (req, res) => {
   try {
-    const botSettings = await prisma.botSettings.findFirst();
-    if (!botSettings?.clickupApiToken) {
-      return res.status(400).json({ error: 'ClickUp API token not configured' });
+    const employee = await prisma.employee.findUnique({
+      where: { id: parseInt(req.params.id) }
+    });
+
+    if (!employee?.clickupApiToken) {
+      return res.status(400).json({ error: 'Employee ClickUp API token not configured' });
     }
 
     const ClickUpService = require('../services/clickup');
-    const clickup = new ClickUpService(botSettings.clickupApiToken);
+    const clickup = new ClickUpService(employee.clickupApiToken);
     const lists = await clickup.getSpaceLists(req.params.spaceId);
     res.json(lists);
   } catch (error) {

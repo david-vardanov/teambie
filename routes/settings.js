@@ -100,10 +100,6 @@ router.post('/bot', requireAdmin, async (req, res) => {
       endOfDayReportTime,
       missedCheckInTime,
       clickupApiToken,
-      clickupWorkspaceId,
-      clickupSpaceId,
-      clickupFolderId,
-      clickupListId,
       clickupEnabled
     } = req.body;
 
@@ -119,10 +115,6 @@ router.post('/bot', requireAdmin, async (req, res) => {
           endOfDayReportTime: endOfDayReportTime || "19:00",
           missedCheckInTime: missedCheckInTime || "12:00",
           clickupApiToken: clickupApiToken || null,
-          clickupWorkspaceId: clickupWorkspaceId || null,
-          clickupSpaceId: clickupSpaceId || null,
-          clickupFolderId: clickupFolderId || null,
-          clickupListId: clickupListId || null,
           clickupEnabled: clickupEnabled === 'on',
           updatedBy: req.session?.userId
         }
@@ -142,10 +134,6 @@ router.post('/bot', requireAdmin, async (req, res) => {
           endOfDayReportTime: endOfDayReportTime || "19:00",
           missedCheckInTime: missedCheckInTime || "12:00",
           clickupApiToken: isMaskedClickUp ? settings.clickupApiToken : (clickupApiToken || settings.clickupApiToken),
-          clickupWorkspaceId: clickupWorkspaceId || settings.clickupWorkspaceId,
-          clickupSpaceId: clickupSpaceId || settings.clickupSpaceId,
-          clickupFolderId: clickupFolderId || settings.clickupFolderId,
-          clickupListId: clickupListId || settings.clickupListId,
           clickupEnabled: clickupEnabled === 'on',
           updatedBy: req.session?.userId
         }

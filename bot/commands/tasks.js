@@ -11,7 +11,7 @@ async function newTask(ctx) {
   const prisma = ctx.prisma;
   const settings = await prisma.botSettings.findFirst();
 
-  if (!settings?.clickupEnabled || !settings?.clickupApiToken) {
+  if (!settings?.clickupEnabled) {
     return ctx.reply('❌ ClickUp integration is not enabled. Contact your admin.');
   }
 
@@ -21,6 +21,10 @@ async function newTask(ctx) {
 
   if (!employee) {
     return ctx.reply('❌ You need to link your account first. Use /start');
+  }
+
+  if (!employee.clickupApiToken) {
+    return ctx.reply('❌ Your ClickUp API token is not configured. Contact your admin to set it up in your employee profile.');
   }
 
   return startTaskCreationFlow(ctx, prisma);
@@ -35,8 +39,8 @@ async function listTasks(ctx) {
     console.log('/tasks command called');
     const settings = await prisma.botSettings.findFirst();
 
-    if (!settings?.clickupEnabled || !settings?.clickupApiToken) {
-      console.log('ClickUp not enabled or no API token');
+    if (!settings?.clickupEnabled) {
+      console.log('ClickUp not enabled');
       return ctx.reply('❌ ClickUp integration is not enabled. Contact your admin.');
     }
 
@@ -44,13 +48,17 @@ async function listTasks(ctx) {
       where: { telegramUserId: BigInt(ctx.from.id) }
     });
 
+    if (!employee?.clickupApiToken) {
+      return ctx.reply('❌ Your ClickUp API token is not configured. Contact your admin.');
+    }
+
     if (!employee?.clickupListId) {
       console.log('ClickUp list ID not configured for employee');
       return ctx.reply('❌ Your ClickUp list is not configured. Contact your admin to set it in your employee profile.');
     }
 
     console.log('Fetching tasks from ClickUp list:', employee.clickupListId);
-    const clickup = new ClickUpService(settings.clickupApiToken);
+    const clickup = new ClickUpService(employee.clickupApiToken);
     const tasks = await clickup.getTasks(employee.clickupListId, {
       includeSubtasks: false, // Don't include subtasks in main list
       includeClosed: false
@@ -113,16 +121,20 @@ async function myTasks(ctx) {
       return ctx.reply('❌ Your ClickUp account is not linked. Contact admin.');
     }
 
+    if (!employee?.clickupApiToken) {
+      return ctx.reply('❌ Your ClickUp API token is not configured. Contact admin.');
+    }
+
     if (!employee?.clickupListId) {
       return ctx.reply('❌ Your ClickUp list is not configured. Contact admin.');
     }
 
     const settings = await prisma.botSettings.findFirst();
-    if (!settings?.clickupEnabled || !settings?.clickupApiToken) {
+    if (!settings?.clickupEnabled) {
       return ctx.reply('❌ ClickUp integration is not enabled.');
     }
 
-    const clickup = new ClickUpService(settings.clickupApiToken);
+    const clickup = new ClickUpService(employee.clickupApiToken);
     const tasks = await clickup.getTasks(employee.clickupListId, {
       assignees: [employee.clickupUserId],
       includeSubtasks: true,
@@ -173,12 +185,15 @@ async function viewTask(ctx) {
   }
 
   try {
-    const settings = await prisma.botSettings.findFirst();
-    if (!settings?.clickupApiToken) {
-      return ctx.reply('❌ ClickUp is not configured.');
+    const employee = await prisma.employee.findUnique({
+      where: { telegramUserId: BigInt(ctx.from.id) }
+    });
+
+    if (!employee?.clickupApiToken) {
+      return ctx.reply('❌ Your ClickUp API token is not configured. Contact admin.');
     }
 
-    const clickup = new ClickUpService(settings.clickupApiToken);
+    const clickup = new ClickUpService(employee.clickupApiToken);
     const task = await clickup.getTask(taskId, true);
     const formatted = clickup.formatTaskForDisplay(task);
 
@@ -397,8 +412,16 @@ async function handleDeleteTaskCallback(ctx) {
 
   if (action === 'yes') {
     try {
-      const settings = await prisma.botSettings.findFirst();
-      const clickup = new ClickUpService(settings.clickupApiToken);
+      const employee = await prisma.employee.findUnique({
+        where: { telegramUserId: BigInt(ctx.from.id) }
+      });
+
+      if (!employee?.clickupApiToken) {
+        await ctx.answerCbQuery('❌ Not configured');
+        return ctx.editMessageText('❌ Your ClickUp API token is not configured.');
+      }
+
+      const clickup = new ClickUpService(employee.clickupApiToken);
       await clickup.deleteTask(taskId);
 
       await ctx.answerCbQuery('✅ Task deleted');

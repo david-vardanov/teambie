@@ -114,13 +114,21 @@
     <hr style="margin: 25px 0;">
     <h3>ClickUp Integration</h3>
 
-    <% if (clickupEnabled && clickupApiToken) { %>
-        <div style="padding: 10px; background-color: <%= employee.clickupUserId ? '#e8f4f8' : '#fff9e6' %>; border-radius: 5px; font-size: 13px; margin-bottom: 15px;">
-            <% if (employee.clickupUserId) { %>
-                <strong>✅ ClickUp Account Linked</strong> - User ID: <%= employee.clickupUserId %>
+    <% if (clickupEnabled) { %>
+        <div style="padding: 10px; background-color: <%= employee.clickupApiToken ? '#e8f4f8' : '#fff9e6' %>; border-radius: 5px; font-size: 13px; margin-bottom: 15px;">
+            <% if (employee.clickupApiToken) { %>
+                <strong>✅ ClickUp Configured</strong> - Employee has their own API token
             <% } else { %>
-                <strong>⚠️ No ClickUp Account Linked</strong> - Please configure ClickUp user ID and task list below
+                <strong>⚠️ ClickUp Not Configured</strong> - Please add employee's ClickUp API token below
             <% } %>
+        </div>
+
+        <div class="form-group">
+            <label for="clickupApiToken">ClickUp API Token (Personal)</label>
+            <input type="text" name="clickupApiToken" id="clickupApiToken"
+                   value="<%= employee.clickupApiToken ? (employee.clickupApiToken.substring(0, 20) + '...') : '' %>"
+                   placeholder="pk_123456789_ABCDEFGHIJKLMNOPQRSTUVWXYZ">
+            <small style="color: #666;">Employee's personal ClickUp API token from ClickUp Settings → Apps → API Token</small>
         </div>
 
         <div class="form-group">
