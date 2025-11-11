@@ -18,7 +18,7 @@ module.exports = async (ctx) => {
         `/balance - View your vacation balance\n` +
         `/homeoffice - Request home office for tomorrow\n` +
         `/vacation - Request vacation days\n` +
-        `/sick - Report sick day for tomorrow`
+        `/sick - Report sick day for today`
       );
       return;
     }

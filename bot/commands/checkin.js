@@ -115,6 +115,48 @@ module.exports = async (ctx) => {
 
     await ctx.reply(message);
 
+    // Fetch and show today's tasks if ClickUp is configured
+    try {
+      const settings = await prisma.botSettings.findFirst();
+      if (settings?.clickupEnabled && employee.clickupApiToken && employee.clickupListId && employee.clickupUserId) {
+        const ClickUpService = require('../../services/clickup');
+        const clickup = new ClickUpService(employee.clickupApiToken);
+
+        const tasks = await clickup.getTasks(employee.clickupListId, {
+          assignees: [employee.clickupUserId],
+          includeSubtasks: true,
+          includeClosed: false
+        });
+
+        if (tasks.length > 0) {
+          const escapeMarkdown = (text) => {
+            return text.replace(/[_*[\]()~`>#+\-=|{}.!]/g, '\\$&');
+          };
+
+          let tasksMessage = `\n📋 *Your Tasks Today* (${tasks.length})\n\n`;
+
+          // Show up to 10 tasks
+          for (const task of tasks.slice(0, 10)) {
+            const status = task.status?.status || 'to do';
+            const statusEmoji = status.toLowerCase().includes('complete') ? '✅' :
+                              status.toLowerCase().includes('progress') ? '▶️' : '📋';
+            tasksMessage += `${statusEmoji} ${escapeMarkdown(task.name)}\n`;
+          }
+
+          if (tasks.length > 10) {
+            tasksMessage += `\n... and ${tasks.length - 10} more tasks\n`;
+          }
+
+          tasksMessage += `\nUse /mytasks to see full list`;
+
+          await ctx.reply(tasksMessage, { parse_mode: 'Markdown' });
+        }
+      }
+    } catch (taskError) {
+      console.error('Error fetching tasks on checkin:', taskError);
+      // Don't fail check-in if task fetch fails
+    }
+
     if (isLateArrival) {
       // Check if late event already exists (might have been auto-created)
       const existingLateEvent = await prisma.event.findFirst({

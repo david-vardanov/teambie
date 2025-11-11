@@ -39,7 +39,7 @@ module.exports = async (ctx) => {
     helpMessage += `/vacation start [end] - Request vacation\n`;
     helpMessage += `   Example: /vacation 2025-12-20 (single day)\n`;
     helpMessage += `   Example: /vacation 2025-12-20 2025-12-25\n\n`;
-    helpMessage += `/sick - Report sick day for tomorrow\n`;
+    helpMessage += `/sick - Report sick day for today\n`;
     helpMessage += `/dayoff - Request a single day off\n\n`;
 
     // Check if ClickUp is enabled

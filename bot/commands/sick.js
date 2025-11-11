@@ -1,7 +1,7 @@
-const { getEmployeeByTelegramId, getTomorrowDate, formatDate, hasEventForDate, notifyAdmins } = require('../utils/helpers');
+const { getEmployeeByTelegramId, getCurrentDate, formatDate, hasEventForDate, notifyAdmins } = require('../utils/helpers');
 
 /**
- * /sick command - Report sick day for tomorrow
+ * /sick command - Report sick day for today
  */
 module.exports = async (ctx) => {
   const telegramUserId = BigInt(ctx.from.id);
@@ -15,14 +15,14 @@ module.exports = async (ctx) => {
       return;
     }
 
-    const tomorrowDate = getTomorrowDate();
+    const todayDate = getCurrentDate();
 
-    // Check if already has an event for tomorrow
-    const hasEvent = await hasEventForDate(prisma, employee.id, tomorrowDate);
+    // Check if already has an event for today
+    const hasEvent = await hasEventForDate(prisma, employee.id, todayDate);
 
     if (hasEvent) {
       await ctx.reply(
-        `You already have an event scheduled for tomorrow (${formatDate(tomorrowDate)}).\n` +
+        `You already have an event scheduled for today (${formatDate(todayDate)}).\n` +
         `Please contact an admin if you need to make changes.`
       );
       return;
@@ -30,12 +30,12 @@ module.exports = async (ctx) => {
 
     // Create inline keyboard for confirmation
     await ctx.reply(
-      `🤒 Report sick day for ${formatDate(tomorrowDate)}?`,
+      `🤒 Report sick day for today (${formatDate(todayDate)})?`,
       {
         reply_markup: {
           inline_keyboard: [
             [
-              { text: '✅ Yes, report', callback_data: `sick_confirm_${tomorrowDate}` },
+              { text: '✅ Yes, report', callback_data: `sick_confirm_${todayDate}` },
               { text: '❌ Cancel', callback_data: 'sick_cancel' }
             ]
           ]

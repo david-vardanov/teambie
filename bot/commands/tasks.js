@@ -88,7 +88,7 @@ async function listTasks(ctx) {
       message += `*${getStatusEmoji(status)} ${escapeMarkdown(status)}* (${taskList.length})\n`;
       for (const task of taskList.slice(0, 5)) { // Limit to 5 per status
         const assignee = task.assignees?.[0]?.username || 'Unassigned';
-        message += `  • ${escapeMarkdown(task.name)} - ${escapeMarkdown(assignee)}\n    /task_${task.id}\n`;
+        message += `  • ${escapeMarkdown(task.name)} \\- ${escapeMarkdown(assignee)}\n    \`/task_${task.id}\`\n`;
       }
       if (taskList.length > 5) {
         message += `  ... and ${taskList.length - 5} more\n`;
@@ -168,10 +168,10 @@ async function myTasks(ctx) {
       message += `*${getStatusEmoji(status)} ${escapeMarkdown(status)}* (${taskList.length})\n`;
       for (const task of taskList) {
         const dueDate = task.due_date
-          ? ` - Due: ${new Date(parseInt(task.due_date)).toLocaleDateString()}`
+          ? ` \\- Due: ${new Date(parseInt(task.due_date)).toLocaleDateString()}`
           : '';
         const parentMark = task.parent ? '  ↳ ' : '  • ';
-        message += `${parentMark}${escapeMarkdown(task.name)}${dueDate}\n    /task_${task.id}\n`;
+        message += `${parentMark}${escapeMarkdown(task.name)}${dueDate}\n    \`/task_${task.id}\`\n`;
       }
       message += '\n';
     }

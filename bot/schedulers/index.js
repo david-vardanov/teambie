@@ -402,6 +402,11 @@ async function checkMissedCheckIns(bot, prisma) {
  */
 async function sendMorningReport(bot, prisma) {
   try {
+    // Skip weekends (Saturday and Sunday)
+    if (isWeekend()) {
+      return;
+    }
+
     const today = getCurrentDate();
     const todayDate = new Date(today);
 
@@ -494,6 +499,11 @@ async function sendMorningReport(bot, prisma) {
  */
 async function sendEndOfDayReport(bot, prisma) {
   try {
+    // Skip weekends (Saturday and Sunday)
+    if (isWeekend()) {
+      return;
+    }
+
     const today = getCurrentDate();
     const todayDate = new Date(today);
 
@@ -665,6 +675,11 @@ async function sendWeeklyReport(bot, prisma) {
  */
 async function checkWorkAnniversaries(bot, prisma) {
   try {
+    // Skip weekends (Saturday and Sunday)
+    if (isWeekend()) {
+      return;
+    }
+
     // Get all active employees
     const employees = await prisma.employee.findMany({
       where: {
