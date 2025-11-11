@@ -77,13 +77,18 @@ async function listTasks(ctx) {
       return acc;
     }, {});
 
+    // Helper function to escape Markdown special characters
+    const escapeMarkdown = (text) => {
+      return text.replace(/[_*[\]()~`>#+\-=|{}.!]/g, '\\$&');
+    };
+
     let message = '📋 *Tasks Overview*\n\n';
 
     for (const [status, taskList] of Object.entries(grouped)) {
-      message += `*${getStatusEmoji(status)} ${status}* (${taskList.length})\n`;
+      message += `*${getStatusEmoji(status)} ${escapeMarkdown(status)}* (${taskList.length})\n`;
       for (const task of taskList.slice(0, 5)) { // Limit to 5 per status
         const assignee = task.assignees?.[0]?.username || 'Unassigned';
-        message += `  • ${task.name} - ${assignee}\n    /task_${task.id}\n`;
+        message += `  • ${escapeMarkdown(task.name)} - ${escapeMarkdown(assignee)}\n    /task_${task.id}\n`;
       }
       if (taskList.length > 5) {
         message += `  ... and ${taskList.length - 5} more\n`;
@@ -92,7 +97,7 @@ async function listTasks(ctx) {
     }
 
     message += `Total: ${tasks.length} task(s)\n`;
-    message += `\nUse /task_[id] to view details\n`;
+    message += `\nUse /task\\_\\[id\\] to view details\n`;
     message += `Use /mytasks to see only your tasks`;
 
     return ctx.reply(message, { parse_mode: 'Markdown' });
@@ -145,6 +150,11 @@ async function myTasks(ctx) {
       return ctx.reply('📋 No tasks assigned to you.');
     }
 
+    // Helper function to escape Markdown special characters
+    const escapeMarkdown = (text) => {
+      return text.replace(/[_*[\]()~`>#+\-=|{}.!]/g, '\\$&');
+    };
+
     let message = `📋 *Your Tasks* (${tasks.length})\n\n`;
 
     const grouped = tasks.reduce((acc, task) => {
@@ -155,13 +165,13 @@ async function myTasks(ctx) {
     }, {});
 
     for (const [status, taskList] of Object.entries(grouped)) {
-      message += `*${getStatusEmoji(status)} ${status}* (${taskList.length})\n`;
+      message += `*${getStatusEmoji(status)} ${escapeMarkdown(status)}* (${taskList.length})\n`;
       for (const task of taskList) {
         const dueDate = task.due_date
           ? ` - Due: ${new Date(parseInt(task.due_date)).toLocaleDateString()}`
           : '';
         const parentMark = task.parent ? '  ↳ ' : '  • ';
-        message += `${parentMark}${task.name}${dueDate}\n    /task_${task.id}\n`;
+        message += `${parentMark}${escapeMarkdown(task.name)}${dueDate}\n    /task_${task.id}\n`;
       }
       message += '\n';
     }
