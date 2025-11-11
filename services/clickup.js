@@ -334,6 +334,53 @@ class ClickUpService {
   }
 
   /**
+   * Create a webhook for a list
+   * @param {string} workspaceId - The workspace ID
+   * @param {string} endpoint - The webhook endpoint URL
+   * @param {string} listId - The list ID to watch
+   * @param {string[]} events - Array of events to listen for
+   * @returns {Promise<object>} - The created webhook object with id
+   */
+  async createWebhook(workspaceId, endpoint, listId, events = ['*']) {
+    try {
+      const response = await this.client.post(`/team/${workspaceId}/webhook`, {
+        endpoint: endpoint,
+        events: events,
+        list_id: listId
+      });
+      return response.data;
+    } catch (error) {
+      throw this.handleError(error);
+    }
+  }
+
+  /**
+   * Delete a webhook
+   * @param {string} webhookId - The webhook ID to delete
+   */
+  async deleteWebhook(webhookId) {
+    try {
+      await this.client.delete(`/webhook/${webhookId}`);
+      return true;
+    } catch (error) {
+      throw this.handleError(error);
+    }
+  }
+
+  /**
+   * Get all webhooks for a workspace
+   * @param {string} workspaceId - The workspace ID
+   */
+  async getWebhooks(workspaceId) {
+    try {
+      const response = await this.client.get(`/team/${workspaceId}/webhook`);
+      return response.data.webhooks;
+    } catch (error) {
+      throw this.handleError(error);
+    }
+  }
+
+  /**
    * Error handler
    */
   handleError(error) {

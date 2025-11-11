@@ -27,7 +27,7 @@ async function newTask(ctx) {
 }
 
 /**
- * /tasks - List all tasks in the configured list
+ * /tasks - List all tasks in the employee's configured list
  */
 async function listTasks(ctx) {
   const prisma = ctx.prisma;
@@ -40,14 +40,18 @@ async function listTasks(ctx) {
       return ctx.reply('❌ ClickUp integration is not enabled. Contact your admin.');
     }
 
-    if (!settings?.clickupListId) {
-      console.log('ClickUp list ID not configured');
-      return ctx.reply('❌ ClickUp List ID is not configured. Contact your admin to set it in Settings.');
+    const employee = await prisma.employee.findUnique({
+      where: { telegramUserId: BigInt(ctx.from.id) }
+    });
+
+    if (!employee?.clickupListId) {
+      console.log('ClickUp list ID not configured for employee');
+      return ctx.reply('❌ Your ClickUp list is not configured. Contact your admin to set it in your employee profile.');
     }
 
-    console.log('Fetching tasks from ClickUp list:', settings.clickupListId);
+    console.log('Fetching tasks from ClickUp list:', employee.clickupListId);
     const clickup = new ClickUpService(settings.clickupApiToken);
-    const tasks = await clickup.getTasks(settings.clickupListId, {
+    const tasks = await clickup.getTasks(employee.clickupListId, {
       includeSubtasks: false, // Don't include subtasks in main list
       includeClosed: false
     });
@@ -109,13 +113,17 @@ async function myTasks(ctx) {
       return ctx.reply('❌ Your ClickUp account is not linked. Contact admin.');
     }
 
+    if (!employee?.clickupListId) {
+      return ctx.reply('❌ Your ClickUp list is not configured. Contact admin.');
+    }
+
     const settings = await prisma.botSettings.findFirst();
     if (!settings?.clickupEnabled || !settings?.clickupApiToken) {
       return ctx.reply('❌ ClickUp integration is not enabled.');
     }
 
     const clickup = new ClickUpService(settings.clickupApiToken);
-    const tasks = await clickup.getTasks(settings.clickupListId, {
+    const tasks = await clickup.getTasks(employee.clickupListId, {
       assignees: [employee.clickupUserId],
       includeSubtasks: true,
       includeClosed: false
@@ -309,6 +317,14 @@ async function handleSubtaskAssigneeCallback(ctx) {
   await ctx.answerCbQuery();
 
   try {
+    const employee = await prisma.employee.findUnique({
+      where: { telegramUserId: BigInt(ctx.from.id) }
+    });
+
+    if (!employee?.clickupListId) {
+      return ctx.editMessageText('❌ Your ClickUp list is not configured. Contact admin.');
+    }
+
     const settings = await prisma.botSettings.findFirst();
     const clickup = new ClickUpService(settings.clickupApiToken);
     const { data } = ctx.session.subtaskCreation;
@@ -319,7 +335,7 @@ async function handleSubtaskAssigneeCallback(ctx) {
       assignees: assigneeId === 'skip' ? undefined : [assigneeId]
     };
 
-    const subtask = await clickup.createTask(settings.clickupListId, taskData);
+    const subtask = await clickup.createTask(employee.clickupListId, taskData);
 
     await ctx.editMessageText(
       `✅ Subtask created successfully!\n\n` +

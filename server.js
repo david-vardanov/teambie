@@ -50,10 +50,12 @@ const employeeRoutes = require('./routes/employees');
 const eventRoutes = require('./routes/events');
 const configRoutes = require('./routes/settings');
 const userRoutes = require('./routes/users');
+const webhookRoutes = require('./routes/webhooks');
 const { requireAuth } = require('./middleware/auth');
 
 // Public routes
 app.use('/auth', authRoutes);
+app.use('/webhooks', webhookRoutes); // ClickUp webhooks don't need auth
 
 // Protected routes
 app.use('/employees', requireAuth, employeeRoutes);

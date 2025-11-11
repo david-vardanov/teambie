@@ -111,6 +111,87 @@
         <small style="color: #666;">Days when employee always works from home</small>
     </div>
 
+    <hr style="margin: 25px 0;">
+    <h3>ClickUp Integration</h3>
+
+    <% if (clickupEnabled && clickupApiToken) { %>
+        <div style="padding: 10px; background-color: <%= employee.clickupUserId ? '#e8f4f8' : '#fff9e6' %>; border-radius: 5px; font-size: 13px; margin-bottom: 15px;">
+            <% if (employee.clickupUserId) { %>
+                <strong>✅ ClickUp Account Linked</strong> - User ID: <%= employee.clickupUserId %>
+            <% } else { %>
+                <strong>⚠️ No ClickUp Account Linked</strong> - Please configure ClickUp user ID and task list below
+            <% } %>
+        </div>
+
+        <div class="form-group">
+            <label for="clickupUserId">ClickUp User ID</label>
+            <input type="text" name="clickupUserId" id="clickupUserId"
+                   value="<%= employee.clickupUserId || '' %>"
+                   placeholder="Enter ClickUp user ID">
+            <small style="color: #666;">Get from ClickUp workspace members or leave empty to auto-match by email</small>
+        </div>
+
+        <div class="form-group">
+            <label for="clickupWorkspaceId">Workspace ID</label>
+            <input type="text" name="clickupWorkspaceId" id="clickupWorkspaceId"
+                   value="<%= employee.clickupWorkspaceId || '' %>"
+                   placeholder="Select workspace below or enter manually">
+            <button type="button" class="btn btn-secondary" onclick="loadWorkspaces()">Load Workspaces</button>
+            <div id="workspacesList" style="margin-top: 10px;"></div>
+        </div>
+
+        <div class="form-group">
+            <label for="clickupSpaceId">Space ID</label>
+            <input type="text" name="clickupSpaceId" id="clickupSpaceId"
+                   value="<%= employee.clickupSpaceId || '' %>"
+                   placeholder="Select space below or enter manually">
+            <button type="button" class="btn btn-secondary" onclick="loadSpaces()">Load Spaces</button>
+            <div id="spacesList" style="margin-top: 10px;"></div>
+        </div>
+
+        <div class="form-group">
+            <label for="clickupListId">Task List ID</label>
+            <input type="text" name="clickupListId" id="clickupListId"
+                   value="<%= employee.clickupListId || '' %>"
+                   placeholder="Select list below or enter manually">
+            <button type="button" class="btn btn-secondary" onclick="loadLists()">Load Lists</button>
+            <div id="listsList" style="margin-top: 10px;"></div>
+            <small style="color: #666;">This employee's personal task list in ClickUp</small>
+        </div>
+
+        <div class="form-group" style="margin-top: 20px;">
+            <label>Webhook Notifications</label>
+            <% if (employee.clickupWebhookId) { %>
+                <div style="padding: 10px; background-color: #d4edda; border-radius: 5px; margin-bottom: 10px;">
+                    <strong>✅ Webhook Active</strong> - Employee will receive Telegram notifications for task events
+                    <br>
+                    <small>Webhook ID: <%= employee.clickupWebhookId %></small>
+                </div>
+                <button type="button" class="btn btn-danger" onclick="unregisterWebhook()">Unregister Webhook</button>
+            <% } else { %>
+                <div style="padding: 10px; background-color: #fff3cd; border-radius: 5px; margin-bottom: 10px;">
+                    <strong>⚠️ Webhook Not Registered</strong> - Employee won't receive automatic notifications
+                </div>
+                <button type="button" class="btn btn-primary" onclick="registerWebhook()"
+                        <%= !employee.clickupListId || !employee.clickupWorkspaceId ? 'disabled' : '' %>>
+                    Register Webhook
+                </button>
+                <% if (!employee.clickupListId || !employee.clickupWorkspaceId) { %>
+                    <small style="color: #856404; display: block; margin-top: 5px;">
+                        Configure workspace and list first, then save before registering webhook
+                    </small>
+                <% } %>
+            <% } %>
+        </div>
+    <% } else { %>
+        <div style="padding: 15px; background-color: #fff9e6; border-left: 4px solid #ffc107; border-radius: 5px;">
+            <strong>⚠️ ClickUp Not Configured</strong>
+            <p style="margin: 5px 0 0 0; color: #856404;">
+                Enable ClickUp integration in <a href="/config/bot">Bot Settings</a> first.
+            </p>
+        </div>
+    <% } %>
+
     <div class="form-actions">
         <button type="submit" class="btn btn-primary">Update Employee</button>
         <a href="/employees/<%= employee.id %>" class="btn btn-secondary">Cancel</a>
@@ -150,3 +231,174 @@
 <form action="/employees/<%= employee.id %>?_method=DELETE" method="POST" style="margin-top: 20px;">
     <button type="submit" class="btn btn-danger" onclick="return confirm('Are you sure you want to delete this employee? All associated events will also be deleted.')">Delete Employee</button>
 </form>
+
+<script>
+    async function loadWorkspaces() {
+        const container = document.getElementById('workspacesList');
+        container.innerHTML = '<p>Loading...</p>';
+
+        try {
+            const response = await fetch('/employees/<%= employee.id %>/clickup/workspaces');
+            if (!response.ok) throw new Error('Failed to load workspaces');
+
+            const workspaces = await response.json();
+            if (workspaces.length === 0) {
+                container.innerHTML = '<p style="color: #666;">No workspaces found</p>';
+                return;
+            }
+
+            let html = '<div style="max-height: 200px; overflow-y: auto; border: 1px solid #ddd; border-radius: 4px; padding: 10px;">';
+            workspaces.forEach(ws => {
+                html += `<div style="padding: 8px; margin: 4px 0; background: #f8f9fa; border-radius: 4px; cursor: pointer;"
+                              onclick="selectWorkspace('${ws.id}', '${ws.name}')">
+                            <strong>${ws.name}</strong><br>
+                            <small style="color: #666;">ID: ${ws.id}</small>
+                         </div>`;
+            });
+            html += '</div>';
+            container.innerHTML = html;
+        } catch (error) {
+            container.innerHTML = `<p style="color: red;">Error: ${error.message}</p>`;
+        }
+    }
+
+    function selectWorkspace(id, name) {
+        document.getElementById('clickupWorkspaceId').value = id;
+        document.getElementById('workspacesList').innerHTML =
+            `<p style="color: green;">✅ Selected: ${name}</p>`;
+    }
+
+    async function loadSpaces() {
+        const workspaceId = document.getElementById('clickupWorkspaceId').value;
+        if (!workspaceId) {
+            alert('Please select a workspace first');
+            return;
+        }
+
+        const container = document.getElementById('spacesList');
+        container.innerHTML = '<p>Loading...</p>';
+
+        try {
+            const response = await fetch(`/employees/<%= employee.id %>/clickup/spaces/${workspaceId}`);
+            if (!response.ok) throw new Error('Failed to load spaces');
+
+            const spaces = await response.json();
+            if (spaces.length === 0) {
+                container.innerHTML = '<p style="color: #666;">No spaces found</p>';
+                return;
+            }
+
+            let html = '<div style="max-height: 200px; overflow-y: auto; border: 1px solid #ddd; border-radius: 4px; padding: 10px;">';
+            spaces.forEach(space => {
+                html += `<div style="padding: 8px; margin: 4px 0; background: #f8f9fa; border-radius: 4px; cursor: pointer;"
+                              onclick="selectSpace('${space.id}', '${space.name}')">
+                            <strong>${space.name}</strong><br>
+                            <small style="color: #666;">ID: ${space.id}</small>
+                         </div>`;
+            });
+            html += '</div>';
+            container.innerHTML = html;
+        } catch (error) {
+            container.innerHTML = `<p style="color: red;">Error: ${error.message}</p>`;
+        }
+    }
+
+    function selectSpace(id, name) {
+        document.getElementById('clickupSpaceId').value = id;
+        document.getElementById('spacesList').innerHTML =
+            `<p style="color: green;">✅ Selected: ${name}</p>`;
+    }
+
+    async function loadLists() {
+        const spaceId = document.getElementById('clickupSpaceId').value;
+        if (!spaceId) {
+            alert('Please select a space first');
+            return;
+        }
+
+        const container = document.getElementById('listsList');
+        container.innerHTML = '<p>Loading...</p>';
+
+        try {
+            const response = await fetch(`/employees/<%= employee.id %>/clickup/lists/${spaceId}`);
+            if (!response.ok) throw new Error('Failed to load lists');
+
+            const lists = await response.json();
+            if (lists.length === 0) {
+                container.innerHTML = '<p style="color: #666;">No lists found</p>';
+                return;
+            }
+
+            let html = '<div style="max-height: 200px; overflow-y: auto; border: 1px solid #ddd; border-radius: 4px; padding: 10px;">';
+            lists.forEach(list => {
+                html += `<div style="padding: 8px; margin: 4px 0; background: #f8f9fa; border-radius: 4px; cursor: pointer;"
+                              onclick="selectList('${list.id}', '${list.name}')">
+                            <strong>${list.name}</strong><br>
+                            <small style="color: #666;">ID: ${list.id}</small>
+                         </div>`;
+            });
+            html += '</div>';
+            container.innerHTML = html;
+        } catch (error) {
+            container.innerHTML = `<p style="color: red;">Error: ${error.message}</p>`;
+        }
+    }
+
+    function selectList(id, name) {
+        document.getElementById('clickupListId').value = id;
+        document.getElementById('listsList').innerHTML =
+            `<p style="color: green;">✅ Selected: ${name}</p>`;
+    }
+
+    async function registerWebhook() {
+        if (!confirm('Register webhook for this employee? They will receive Telegram notifications for all task events.')) {
+            return;
+        }
+
+        try {
+            const response = await fetch('/employees/<%= employee.id %>/clickup/register-webhook', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                }
+            });
+
+            const result = await response.json();
+
+            if (response.ok && result.success) {
+                alert('✅ Webhook registered successfully! The page will reload.');
+                window.location.reload();
+            } else {
+                alert('❌ Failed to register webhook: ' + (result.error || 'Unknown error'));
+            }
+        } catch (error) {
+            alert('❌ Error: ' + error.message);
+        }
+    }
+
+    async function unregisterWebhook() {
+        if (!confirm('Unregister webhook? Employee will stop receiving automatic task notifications.')) {
+            return;
+        }
+
+        try {
+            const response = await fetch('/employees/<%= employee.id %>/clickup/unregister-webhook', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                }
+            });
+
+            const result = await response.json();
+
+            if (response.ok && result.success) {
+                alert('✅ Webhook unregistered successfully! The page will reload.');
+                window.location.reload();
+            } else {
+                alert('❌ Failed to unregister webhook: ' + (result.error || 'Unknown error'));
+            }
+        } catch (error) {
+            alert('❌ Error: ' + error.message);
+        }
+    }
+</script>

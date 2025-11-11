@@ -49,6 +49,10 @@ model Employee {
 
   // ClickUp integration
   clickupUserId             String?             @unique
+  clickupWorkspaceId        String?
+  clickupSpaceId            String?
+  clickupListId             String?
+  clickupWebhookId          String?             // Webhook ID for this employee's list
 
   attendanceCheckIns        AttendanceCheckIn[]
 }

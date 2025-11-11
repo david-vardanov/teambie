@@ -95,13 +95,22 @@ async function handleTaskCreationStep(ctx, prisma) {
 
       // Get workspace members for assignee selection
       try {
+        const employee = await prisma.employee.findUnique({
+          where: { telegramUserId: BigInt(ctx.from.id) }
+        });
+
         const settings = await prisma.botSettings.findFirst();
-        if (!settings?.clickupApiToken || !settings?.clickupWorkspaceId) {
-          return ctx.reply('❌ ClickUp is not configured properly. Contact admin.');
+        if (!settings?.clickupApiToken) {
+          return ctx.reply('❌ ClickUp API token is not configured. Contact admin.');
+        }
+
+        const workspaceId = employee?.clickupWorkspaceId || settings?.clickupWorkspaceId;
+        if (!workspaceId) {
+          return ctx.reply('❌ ClickUp workspace is not configured. Contact admin.');
         }
 
         const clickup = new ClickUpService(settings.clickupApiToken);
-        const members = await clickup.getWorkspaceMembers(settings.clickupWorkspaceId);
+        const members = await clickup.getWorkspaceMembers(workspaceId);
 
         // Get employees with ClickUp IDs
         const employees = await prisma.employee.findMany({
@@ -160,6 +169,16 @@ async function handleTaskAssigneeCallback(ctx, prisma) {
 
   // Now create the task
   try {
+    const employee = await prisma.employee.findUnique({
+      where: { telegramUserId: BigInt(ctx.from.id) }
+    });
+
+    if (!employee?.clickupListId) {
+      await ctx.editMessageText('❌ Your ClickUp list is not configured. Contact admin.');
+      delete ctx.session.taskCreation;
+      return;
+    }
+
     const settings = await prisma.botSettings.findFirst();
     const clickup = new ClickUpService(settings.clickupApiToken);
     const { data } = ctx.session.taskCreation;
@@ -173,7 +192,7 @@ async function handleTaskAssigneeCallback(ctx, prisma) {
       timeEstimate: data.duration || undefined
     };
 
-    const task = await clickup.createTask(settings.clickupListId, taskData);
+    const task = await clickup.createTask(employee.clickupListId, taskData);
 
     await ctx.editMessageText(
       `✅ Task created successfully!\n\n` +
