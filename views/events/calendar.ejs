@@ -39,7 +39,7 @@
                         });
                     %>
                     <% monthsData.forEach((monthData, idx) => { %>
-                        <th colspan="<%= monthData.daysInMonth %>" class="month-header"><%= monthNames[idx] %></th>
+                        <th colspan="<%= monthData.daysInMonth %>" class="month-header" data-month="<%= idx %>" data-original-colspan="<%= monthData.daysInMonth %>"><%= monthNames[idx] %></th>
                     <% }) %>
                 </tr>
                 <tr>
@@ -52,7 +52,7 @@
                                 const isWeekend = dayOfWeek === 0 || dayOfWeek === 6;
                                 const isToday = today.getDate() === day && today.getMonth() === monthIndex && today.getFullYear() === year;
                             %>
-                            <th class="day-header <%= isWeekend ? 'weekend' : '' %> <%= isToday ? 'today' : '' %>" data-date="<%= year %>-<%= monthIndex %>-<%= day %>">
+                            <th class="day-header <%= isWeekend ? 'weekend' : '' %> <%= isToday ? 'today' : '' %>" data-date="<%= year %>-<%= (monthIndex + 1).toString().padStart(2, '0') %>-<%= day.toString().padStart(2, '0') %>" data-month="<%= monthIndex %>">
                                 <div class="day-number"><%= day %></div>
                                 <div class="day-name"><%= dayNames[dayOfWeek] %></div>
                             </th>
@@ -217,12 +217,267 @@
     </ul>
 </div>
 
+<!-- Clear Filter Button -->
+<button class="clear-filter-btn" id="clearFilterBtn">Clear Filter</button>
+
 <script>
 document.addEventListener('DOMContentLoaded', function() {
     const modal = document.getElementById('eventModal');
     const closeModalBtn = document.getElementById('closeModal');
     const closeModalFooterBtn = document.getElementById('closeModalBtn');
     const tableWrapper = document.querySelector('.table-scroll-wrapper');
+
+    // ============================================
+    // ROW HIGHLIGHTING ON CELL HOVER
+    // ============================================
+
+    const dayCellsForHover = document.querySelectorAll('.calendar-table tbody td.day-cell');
+
+    dayCellsForHover.forEach(cell => {
+        cell.addEventListener('mouseenter', function() {
+            // Get the parent row
+            const row = this.closest('tr');
+            if (row) {
+                // Add highlight class to the row
+                row.classList.add('row-highlighted');
+
+                // Add highlight class to the employee name cell
+                const employeeNameCell = row.querySelector('td.employee-name');
+                if (employeeNameCell) {
+                    employeeNameCell.classList.add('employee-highlighted');
+                }
+            }
+        });
+
+        cell.addEventListener('mouseleave', function() {
+            // Get the parent row
+            const row = this.closest('tr');
+            if (row) {
+                // Remove highlight class from the row
+                row.classList.remove('row-highlighted');
+
+                // Remove highlight class from the employee name cell
+                const employeeNameCell = row.querySelector('td.employee-name');
+                if (employeeNameCell) {
+                    employeeNameCell.classList.remove('employee-highlighted');
+                }
+            }
+        });
+    });
+
+    // ============================================
+    // EMPLOYEE FILTER FUNCTIONALITY
+    // ============================================
+
+    let currentFilteredEmployeeId = null;
+    let removedElements = { headers: [], cells: [], rows: [], monthHeaders: [] };
+    const clearFilterBtn = document.getElementById('clearFilterBtn');
+    const employeeNameCells = document.querySelectorAll('.calendar-table tbody td.employee-name a');
+
+    employeeNameCells.forEach(link => {
+        // Prevent default navigation and add click handler for filtering
+        link.addEventListener('click', function(e) {
+            e.preventDefault();
+
+            const employeeNameCell = this.closest('td.employee-name');
+            const employeeRow = this.closest('tr');
+            const employeeId = employeeRow.querySelector('.day-cell')?.dataset.employeeId;
+
+            if (!employeeId) return;
+
+            // If clicking the same employee, clear filter
+            if (currentFilteredEmployeeId === employeeId) {
+                clearEmployeeFilter();
+                return;
+            }
+
+            // Set current filtered employee
+            currentFilteredEmployeeId = employeeId;
+            removedElements = { headers: [], cells: [], rows: [], monthHeaders: [] };
+
+            // Find all days that have events for this employee
+            const employeeCells = employeeRow.querySelectorAll('.day-cell');
+            const daysWithEvents = new Set();
+
+            employeeCells.forEach((cell) => {
+                if (cell.classList.contains('has-event')) {
+                    const date = cell.dataset.date;
+                    if (date) {
+                        daysWithEvents.add(date);
+                    }
+                }
+            });
+
+            // Remove day headers that don't have events for this employee
+            const dayHeaders = document.querySelectorAll('.calendar-table thead th.day-header');
+            dayHeaders.forEach((header) => {
+                const headerDate = header.dataset.date;
+                if (headerDate && !daysWithEvents.has(headerDate)) {
+                    // Store the header and its position for restoration
+                    removedElements.headers.push({
+                        element: header,
+                        parent: header.parentNode,
+                        nextSibling: header.nextSibling
+                    });
+                    // Remove from DOM
+                    header.remove();
+                }
+            });
+
+            // Remove corresponding cells from ALL rows
+            const allBodyRows = document.querySelectorAll('.calendar-table tbody tr');
+            allBodyRows.forEach(row => {
+                const cellsInRow = row.querySelectorAll('.day-cell');
+                cellsInRow.forEach(cell => {
+                    const cellDate = cell.dataset.date;
+                    if (cellDate && !daysWithEvents.has(cellDate)) {
+                        // Store the cell and its position for restoration
+                        removedElements.cells.push({
+                            element: cell,
+                            parent: cell.parentNode,
+                            nextSibling: cell.nextSibling
+                        });
+                        // Remove from DOM
+                        cell.remove();
+                    }
+                });
+            });
+
+            // Hide all rows except the selected employee
+            allBodyRows.forEach(row => {
+                const firstCell = row.querySelector('.day-cell');
+                if (firstCell && firstCell.dataset.employeeId !== employeeId) {
+                    removedElements.rows.push({
+                        element: row,
+                        parent: row.parentNode,
+                        nextSibling: row.nextSibling
+                    });
+                    row.remove();
+                }
+            });
+
+            // Update month header colspans based on remaining visible days
+            const monthHeaders = document.querySelectorAll('.calendar-table thead th.month-header');
+            const visibleDayHeaders = document.querySelectorAll('.calendar-table thead th.day-header');
+
+            // Count visible days per month
+            const monthDayCounts = {};
+            visibleDayHeaders.forEach(header => {
+                const month = header.dataset.month;
+                if (month) {
+                    monthDayCounts[month] = (monthDayCounts[month] || 0) + 1;
+                }
+            });
+
+            // Update colspan for each month header and hide if no days
+            monthHeaders.forEach(monthHeader => {
+                const month = monthHeader.dataset.month;
+                const originalColspan = monthHeader.dataset.originalColspan;
+                const newColspan = monthDayCounts[month] || 0;
+
+                if (newColspan === 0) {
+                    // Store and remove month header if no days visible
+                    removedElements.monthHeaders.push({
+                        element: monthHeader,
+                        parent: monthHeader.parentNode,
+                        nextSibling: monthHeader.nextSibling,
+                        originalColspan: originalColspan
+                    });
+                    monthHeader.remove();
+                } else if (newColspan !== parseInt(originalColspan)) {
+                    // Update colspan
+                    monthHeader.setAttribute('colspan', newColspan);
+                }
+            });
+
+            // Add visual indicator to the active employee
+            employeeNameCell.classList.add('filter-active');
+
+            // Add filtered-view class to table wrapper for expanded cells
+            if (tableWrapper) {
+                tableWrapper.classList.add('filtered-view');
+            }
+
+            // Show clear filter button
+            clearFilterBtn.classList.add('active');
+
+            // Show notification
+            const employeeName = this.textContent;
+            showNotification(`Showing only days with events for ${employeeName}`, 'info');
+        });
+    });
+
+    // Clear filter button handler
+    clearFilterBtn.addEventListener('click', clearEmployeeFilter);
+
+    function clearEmployeeFilter() {
+        // Clear filtered employee
+        currentFilteredEmployeeId = null;
+
+        // Restore all removed rows
+        removedElements.rows.forEach(item => {
+            if (item.nextSibling) {
+                item.parent.insertBefore(item.element, item.nextSibling);
+            } else {
+                item.parent.appendChild(item.element);
+            }
+        });
+
+        // Restore all removed cells
+        removedElements.cells.forEach(item => {
+            if (item.nextSibling) {
+                item.parent.insertBefore(item.element, item.nextSibling);
+            } else {
+                item.parent.appendChild(item.element);
+            }
+        });
+
+        // Restore all removed headers
+        removedElements.headers.forEach(item => {
+            if (item.nextSibling) {
+                item.parent.insertBefore(item.element, item.nextSibling);
+            } else {
+                item.parent.appendChild(item.element);
+            }
+        });
+
+        // Restore all removed month headers
+        removedElements.monthHeaders.forEach(item => {
+            if (item.nextSibling) {
+                item.parent.insertBefore(item.element, item.nextSibling);
+            } else {
+                item.parent.appendChild(item.element);
+            }
+        });
+
+        // Restore original colspan values for all month headers
+        const monthHeaders = document.querySelectorAll('.calendar-table thead th.month-header');
+        monthHeaders.forEach(monthHeader => {
+            const originalColspan = monthHeader.dataset.originalColspan;
+            if (originalColspan) {
+                monthHeader.setAttribute('colspan', originalColspan);
+            }
+        });
+
+        // Clear the removed elements storage
+        removedElements = { headers: [], cells: [], rows: [], monthHeaders: [] };
+
+        // Remove filter active indicator
+        const activeEmployeeName = document.querySelector('.employee-name.filter-active');
+        if (activeEmployeeName) {
+            activeEmployeeName.classList.remove('filter-active');
+        }
+
+        // Remove filtered-view class from table wrapper
+        if (tableWrapper) {
+            tableWrapper.classList.remove('filtered-view');
+        }
+
+        // Hide clear filter button
+        clearFilterBtn.classList.remove('active');
+
+        showNotification('Filter cleared - showing all employees', 'success');
+    }
 
     // Auto-scroll to today's column immediately
     const todayCell = document.querySelector('.calendar-table .day-header.today');
@@ -539,6 +794,13 @@ document.addEventListener('DOMContentLoaded', function() {
             document.querySelectorAll('.day-cell').forEach(cell => {
                 cell.classList.remove('drop-target', 'drop-target-hover');
             });
+            // Remove all row highlighting
+            document.querySelectorAll('.calendar-table tbody tr').forEach(row => {
+                row.classList.remove('row-highlighted');
+            });
+            document.querySelectorAll('.calendar-table tbody td.employee-name').forEach(empCell => {
+                empCell.classList.remove('employee-highlighted');
+            });
         });
 
         // Add cursor style on hover
@@ -562,23 +824,63 @@ document.addEventListener('DOMContentLoaded', function() {
             if (!this.classList.contains('drop-target-hover')) {
                 this.classList.add('drop-target', 'drop-target-hover');
             }
+
+            // Add row highlighting during drag
+            const row = this.closest('tr');
+            if (row) {
+                row.classList.add('row-highlighted');
+                const employeeNameCell = row.querySelector('td.employee-name');
+                if (employeeNameCell) {
+                    employeeNameCell.classList.add('employee-highlighted');
+                }
+            }
         });
 
         cell.addEventListener('dragenter', function(e) {
             e.preventDefault();
             this.classList.add('drop-target');
+
+            // Add row highlighting during drag
+            const row = this.closest('tr');
+            if (row) {
+                row.classList.add('row-highlighted');
+                const employeeNameCell = row.querySelector('td.employee-name');
+                if (employeeNameCell) {
+                    employeeNameCell.classList.add('employee-highlighted');
+                }
+            }
         });
 
         cell.addEventListener('dragleave', function(e) {
             // Only remove if we're actually leaving the cell (not entering a child)
             if (e.target === this) {
                 this.classList.remove('drop-target', 'drop-target-hover');
+
+                // Remove row highlighting when leaving during drag
+                const row = this.closest('tr');
+                if (row) {
+                    row.classList.remove('row-highlighted');
+                    const employeeNameCell = row.querySelector('td.employee-name');
+                    if (employeeNameCell) {
+                        employeeNameCell.classList.remove('employee-highlighted');
+                    }
+                }
             }
         });
 
         cell.addEventListener('drop', function(e) {
             e.preventDefault();
             this.classList.remove('drop-target', 'drop-target-hover');
+
+            // Remove row highlighting after drop
+            const row = this.closest('tr');
+            if (row) {
+                row.classList.remove('row-highlighted');
+                const employeeNameCell = row.querySelector('td.employee-name');
+                if (employeeNameCell) {
+                    employeeNameCell.classList.remove('employee-highlighted');
+                }
+            }
 
             const employeeId = this.dataset.employeeId;
             const employeeName = this.dataset.employeeName;
