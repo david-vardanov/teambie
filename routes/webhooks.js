@@ -3,6 +3,194 @@ const router = express.Router();
 const prisma = require('../lib/prisma');
 
 /**
+ * Message batching system
+ * Queues webhook events and combines them into a single message after a delay
+ */
+const messageBatches = new Map(); // task_id -> { events: [], timeout: timeoutId, employee, botSettings }
+const BATCH_DELAY_MS = 3500; // Wait 3.5 seconds for more events before sending
+
+/**
+ * Escape Markdown special characters
+ */
+const escapeMarkdown = (text) => {
+  if (!text) return '';
+  return text.replace(/[_*[\]()~`>#+\-=|{}.!]/g, '\\$&');
+};
+
+/**
+ * Process a batch of events and send a combined notification
+ */
+async function processBatch(batchKey, batch) {
+  const { events, employee, botSettings } = batch;
+
+  console.log(`Processing batch for task ${batchKey} with ${events.length} events`);
+
+  // Fetch fresh task data
+  let task = null;
+  const firstEvent = events[0];
+
+  if (firstEvent.task_id && employee.clickupApiToken) {
+    try {
+      const ClickUpService = require('../services/clickup');
+      const clickup = new ClickUpService(employee.clickupApiToken);
+      task = await clickup.getTask(firstEvent.task_id, false);
+    } catch (error) {
+      console.error('Failed to fetch task from API:', error.message);
+      task = firstEvent.payload.task;
+    }
+  } else {
+    task = firstEvent.payload.task;
+  }
+
+  // Analyze events and collect changes
+  const changes = {
+    created: false,
+    deleted: false,
+    statusChanges: [],
+    assigneeAdded: [],
+    assigneeRemoved: [],
+    otherChanges: [],
+    comments: []
+  };
+
+  for (const evt of events) {
+    if (evt.event === 'taskCreated') {
+      changes.created = true;
+    } else if (evt.event === 'taskDeleted') {
+      changes.deleted = true;
+    } else if (evt.event === 'taskCommentPosted') {
+      changes.comments.push(evt.payload.comment);
+    } else if (evt.event === 'taskStatusUpdated' || evt.event === 'taskUpdated') {
+      // Parse history items
+      if (evt.history_items && evt.history_items.length > 0) {
+        for (const item of evt.history_items) {
+          if (item.field === 'status') {
+            // Only add if we don't already have this exact status change
+            const statusChange = `${item.before?.status || 'None'} → ${item.after?.status || 'None'}`;
+            if (!changes.statusChanges.includes(statusChange)) {
+              changes.statusChanges.push(statusChange);
+            }
+          } else if (item.field === 'assignee_add') {
+            changes.assigneeAdded.push(item.after?.username || 'Someone');
+          } else if (item.field === 'assignee_rem') {
+            changes.assigneeRemoved.push(item.before?.username || 'Someone');
+          } else if (item.field !== 'status') {
+            // Track other changes
+            const changeDesc = formatFieldChange(item);
+            if (changeDesc && !changes.otherChanges.includes(changeDesc)) {
+              changes.otherChanges.push(changeDesc);
+            }
+          }
+        }
+      }
+    }
+  }
+
+  // Build combined message with better hierarchy
+  const message = formatCombinedMessage(task, changes);
+
+  // Send to Telegram
+  const { Telegraf } = require('telegraf');
+  const bot = new Telegraf(botSettings.telegramBotToken);
+
+  await bot.telegram.sendMessage(
+    employee.telegramUserId.toString(),
+    message,
+    { parse_mode: 'Markdown' }
+  );
+
+  console.log(`Combined notification sent to ${employee.name} (${employee.telegramUserId})`);
+}
+
+/**
+ * Format a field change into a readable string
+ */
+function formatFieldChange(item) {
+  const field = item.field;
+
+  const fieldNames = {
+    name: 'Name',
+    description: 'Description',
+    due_date: 'Due date',
+    priority: 'Priority',
+    content: 'Content',
+    tag: 'Tags'
+  };
+
+  return fieldNames[field] || field;
+}
+
+/**
+ * Format a combined message with better hierarchy
+ */
+function formatCombinedMessage(task, changes) {
+  let message = '';
+
+  // Header - determine what happened
+  if (changes.deleted) {
+    message = `🗑 *Task Deleted*\n`;
+  } else if (changes.created) {
+    message = `✅ *Task Created*\n`;
+  } else {
+    message = `📝 *Task Updated*\n`;
+  }
+
+  // Task name and link (always on same line for compactness)
+  const taskName = escapeMarkdown(task?.name || 'Untitled Task');
+  if (task?.url) {
+    message += `[${taskName}](${task.url})\n\n`;
+  } else {
+    message += `${taskName}\n\n`;
+  }
+
+  // Changes section
+  const hasChanges = changes.statusChanges.length > 0 ||
+                     changes.assigneeAdded.length > 0 ||
+                     changes.assigneeRemoved.length > 0 ||
+                     changes.otherChanges.length > 0 ||
+                     changes.comments.length > 0;
+
+  if (hasChanges) {
+    // Status changes (most important, show first)
+    if (changes.statusChanges.length > 0) {
+      for (const statusChange of changes.statusChanges) {
+        message += `▸ Status: ${escapeMarkdown(statusChange)}\n`;
+      }
+    }
+
+    // Assignee changes
+    if (changes.assigneeAdded.length > 0) {
+      message += `▸ Assigned: ${escapeMarkdown(changes.assigneeAdded.join(', '))}\n`;
+    }
+    if (changes.assigneeRemoved.length > 0) {
+      message += `▸ Unassigned: ${escapeMarkdown(changes.assigneeRemoved.join(', '))}\n`;
+    }
+
+    // Other changes
+    if (changes.otherChanges.length > 0) {
+      for (const change of changes.otherChanges) {
+        message += `▸ ${escapeMarkdown(change)} updated\n`;
+      }
+    }
+
+    // Comments
+    if (changes.comments.length > 0) {
+      for (const comment of changes.comments) {
+        const commentText = comment.comment_text || comment.text_content || '';
+        const preview = commentText.substring(0, 100);
+        const username = comment.user?.username || 'Someone';
+        message += `▸ Comment by ${escapeMarkdown(username)}: "${escapeMarkdown(preview)}${commentText.length > 100 ? '...' : ''}"\n`;
+      }
+    }
+  } else if (changes.created && task?.status) {
+    // For new tasks, show initial status
+    message += `▸ Status: ${escapeMarkdown(task.status.status || task.status)}\n`;
+  }
+
+  return message;
+}
+
+/**
  * ClickUp webhook endpoint
  * Receives events from ClickUp when tasks are created, updated, or status changed
  */
@@ -39,147 +227,48 @@ router.post('/clickup', async (req, res) => {
       return res.status(200).json({ message: 'Webhook received but Telegram not configured' });
     }
 
-    // Fetch task details from ClickUp API instead of relying on webhook payload
-    let task = null;
-    if (task_id && employee.clickupApiToken) {
+    // Add event to batch queue
+    const batchKey = task_id || `webhook_${webhook_id}_${Date.now()}`;
+
+    if (!messageBatches.has(batchKey)) {
+      messageBatches.set(batchKey, {
+        events: [],
+        employee,
+        botSettings,
+        timeout: null
+      });
+    }
+
+    const batch = messageBatches.get(batchKey);
+
+    // Clear existing timeout
+    if (batch.timeout) {
+      clearTimeout(batch.timeout);
+    }
+
+    // Add event to queue
+    batch.events.push({
+      event,
+      task_id,
+      history_items,
+      webhook_id,
+      payload: req.body
+    });
+
+    // Set new timeout to process batch
+    batch.timeout = setTimeout(async () => {
       try {
-        const ClickUpService = require('../services/clickup');
-        const clickup = new ClickUpService(employee.clickupApiToken);
-        task = await clickup.getTask(task_id, false);
-        console.log('Fetched task from API:', task.name);
+        await processBatch(batchKey, batch);
       } catch (error) {
-        console.error('Failed to fetch task from API:', error.message);
-        // Continue with webhook payload data as fallback
-        task = req.body.task;
+        console.error('Error processing batch:', error);
+      } finally {
+        messageBatches.delete(batchKey);
       }
-    } else {
-      task = req.body.task;
-    }
+    }, BATCH_DELAY_MS);
 
-    // Load Telegram bot dynamically
-    const { Telegraf } = require('telegraf');
-    const bot = new Telegraf(botSettings.telegramBotToken);
+    console.log(`Event queued for task ${batchKey}. Current batch size: ${batch.events.length}`);
 
-    // Escape Markdown special characters
-    const escapeMarkdown = (text) => {
-      if (!text) return '';
-      return text.replace(/[_*[\]()~`>#+\-=|{}.!]/g, '\\$&');
-    };
-
-    // Parse event type and build notification message
-    let message = '';
-
-    if (event === 'taskCreated') {
-      message = `📋 *New Task Created!*\n\n`;
-      message += `📝 ${escapeMarkdown(task?.name || 'Untitled Task')}\n`;
-      if (task?.url) {
-        message += `🔗 ${task.url}\n`;
-      }
-      message += `\n`;
-
-      if (task?.status) {
-        message += `📊 Status: ${escapeMarkdown(task.status.status || task.status)}\n`;
-      }
-
-      if (task?.assignees && task.assignees.length > 0) {
-        const assigneeNames = task.assignees.map(a => a.username).join(', ');
-        message += `👤 Assigned to: ${escapeMarkdown(assigneeNames)}\n`;
-      }
-
-      if (task?.due_date) {
-        const dueDate = new Date(parseInt(task.due_date));
-        message += `⏰ Due: ${dueDate.toLocaleDateString()}\n`;
-      }
-
-    } else if (event === 'taskUpdated') {
-      message = `🔄 *Task Updated!*\n\n`;
-      message += `📝 ${escapeMarkdown(task?.name || 'Untitled Task')}\n`;
-      if (task?.url) {
-        message += `🔗 ${task.url}\n`;
-      }
-      message += `\n`;
-
-      // Parse history items to show what changed
-      if (history_items && history_items.length > 0) {
-        message += `*Changes:*\n`;
-        for (const item of history_items.slice(0, 5)) { // Show max 5 changes
-          if (item.field === 'status') {
-            message += `📊 Status: ${escapeMarkdown(item.before?.status || 'None')} → ${escapeMarkdown(item.after?.status || 'None')}\n`;
-          } else if (item.field === 'assignee_add') {
-            message += `👤 Assigned: ${escapeMarkdown(item.after?.username || 'Someone')}\n`;
-          } else if (item.field === 'assignee_rem') {
-            message += `👤 Unassigned: ${escapeMarkdown(item.before?.username || 'Someone')}\n`;
-          } else if (item.field === 'name') {
-            message += `📝 Name changed\n`;
-          } else if (item.field === 'description') {
-            message += `📄 Description updated\n`;
-          } else if (item.field === 'due_date') {
-            message += `⏰ Due date changed\n`;
-          } else if (item.field === 'priority') {
-            message += `⚠️ Priority changed\n`;
-          } else if (item.field === 'content') {
-            message += `📝 Content updated\n`;
-          } else {
-            message += `✏️ ${escapeMarkdown(item.field)} updated\n`;
-          }
-        }
-      }
-
-    } else if (event === 'taskStatusUpdated') {
-      message = `📊 *Task Status Changed!*\n\n`;
-      message += `📝 ${escapeMarkdown(task?.name || 'Untitled Task')}\n`;
-      if (task?.url) {
-        message += `🔗 ${task.url}\n`;
-      }
-      message += `\n`;
-
-      if (history_items && history_items.length > 0) {
-        const statusChange = history_items.find(item => item.field === 'status');
-        if (statusChange) {
-          message += `Status: ${escapeMarkdown(statusChange.before?.status || 'None')} → *${escapeMarkdown(statusChange.after?.status || 'None')}*\n`;
-        }
-      }
-
-    } else if (event === 'taskDeleted') {
-      message = `🗑️ *Task Deleted!*\n\n`;
-      message += `📝 ${escapeMarkdown(task?.name || 'A task')} was deleted\n`;
-
-    } else if (event === 'taskCommentPosted') {
-      message = `💬 *New Comment on Task!*\n\n`;
-      message += `📝 ${escapeMarkdown(task?.name || 'Untitled Task')}\n`;
-      if (task?.url) {
-        message += `🔗 ${task.url}\n`;
-      }
-      message += `\n`;
-
-      if (req.body.comment) {
-        const commentText = req.body.comment.comment_text || req.body.comment.text_content || '';
-        const commentPreview = commentText.substring(0, 200);
-        message += `💬 "${escapeMarkdown(commentPreview)}${commentText.length > 200 ? '...' : ''}"\n`;
-        message += `👤 By: ${escapeMarkdown(req.body.comment.user?.username || 'Someone')}\n`;
-      }
-
-    } else {
-      // Unknown event type
-      message = `🔔 *Task Notification*\n\n`;
-      message += `📝 ${escapeMarkdown(task?.name || 'A task')}\n`;
-      if (task?.url) {
-        message += `🔗 ${task.url}\n`;
-      }
-      message += `\n`;
-      message += `Event: ${event}\n`;
-    }
-
-    // Send notification to employee via Telegram
-    await bot.telegram.sendMessage(
-      employee.telegramUserId.toString(),
-      message,
-      { parse_mode: 'Markdown' }
-    );
-
-    console.log(`Notification sent to employee ${employee.name} (${employee.telegramUserId})`);
-
-    return res.status(200).json({ message: 'Webhook processed successfully' });
+    return res.status(200).json({ message: 'Webhook queued for processing' });
 
   } catch (error) {
     console.error('Error processing ClickUp webhook:', error);
