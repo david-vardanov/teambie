@@ -7,7 +7,7 @@ const prisma = require('../lib/prisma');
  * Queues webhook events and combines them into a single message after a delay
  */
 const messageBatches = new Map(); // task_id -> { events: [], timeout: timeoutId, employee, botSettings }
-const BATCH_DELAY_MS = 3500; // Wait 3.5 seconds for more events before sending
+const BATCH_DELAY_MS = 10000; // Wait 10 seconds for more events before sending
 
 /**
  * Escape Markdown special characters
@@ -49,6 +49,7 @@ async function processBatch(batchKey, batch) {
     statusChanges: [],
     assigneeAdded: [],
     assigneeRemoved: [],
+    descriptionUpdate: null,
     otherChanges: [],
     comments: []
   };
@@ -74,6 +75,12 @@ async function processBatch(batchKey, batch) {
             changes.assigneeAdded.push(item.after?.username || 'Someone');
           } else if (item.field === 'assignee_rem') {
             changes.assigneeRemoved.push(item.before?.username || 'Someone');
+          } else if (item.field === 'description' || item.field === 'content') {
+            // Store latest description update (keep only the last one)
+            const newDesc = item.after?.description || item.after?.content || item.after || '';
+            if (newDesc) {
+              changes.descriptionUpdate = newDesc;
+            }
           } else if (item.field !== 'status') {
             // Track other changes
             const changeDesc = formatFieldChange(item);
@@ -147,6 +154,7 @@ function formatCombinedMessage(task, changes) {
   const hasChanges = changes.statusChanges.length > 0 ||
                      changes.assigneeAdded.length > 0 ||
                      changes.assigneeRemoved.length > 0 ||
+                     changes.descriptionUpdate !== null ||
                      changes.otherChanges.length > 0 ||
                      changes.comments.length > 0;
 
@@ -156,6 +164,12 @@ function formatCombinedMessage(task, changes) {
       for (const statusChange of changes.statusChanges) {
         message += `▸ Status: ${escapeMarkdown(statusChange)}\n`;
       }
+    }
+
+    // Description update - show the actual content
+    if (changes.descriptionUpdate) {
+      const preview = changes.descriptionUpdate.substring(0, 150);
+      message += `▸ Description: ${escapeMarkdown(preview)}${changes.descriptionUpdate.length > 150 ? '...' : ''}\n`;
     }
 
     // Assignee changes
