@@ -56,6 +56,7 @@ model Employee {
   clickupWebhookId          String?             // Webhook ID for this employee's list
 
   attendanceCheckIns        AttendanceCheckIn[]
+  taskEvents                TaskEvent[]
 }
 
 model Event {
@@ -151,4 +152,37 @@ model BotSettings {
   updatedAt                 DateTime @updatedAt
   updatedBy                 Int?
   updatedByUser             User?    @relation(fields: [updatedBy], references: [id], onDelete: SetNull)
+}
+
+model TaskEvent {
+  id              Int           @id @default(autoincrement())
+  clickupTaskId   String
+  employeeId      Int
+  employee        Employee      @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+
+  eventType       TaskEventType
+  taskName        String
+  projectName     String?       // From ClickUp List/Folder name
+
+  // Event metadata
+  statusFrom      String?
+  statusTo        String?
+  description     String?       // For description updates
+
+  occurredAt      DateTime
+  createdAt       DateTime      @default(now())
+
+  @@index([employeeId, occurredAt])
+  @@index([clickupTaskId])
+  @@index([occurredAt])
+}
+
+enum TaskEventType {
+  CREATED
+  STATUS_CHANGED
+  COMPLETED
+  ASSIGNED
+  UNASSIGNED
+  DESCRIPTION_UPDATED
+  SUBTASK_ADDED
 }

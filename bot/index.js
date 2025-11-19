@@ -195,15 +195,18 @@ function configureBot(bot) {
         let parsedHours = null;
         let parsedMinutesValue = null;
 
+        // Trim and clean the input
+        const cleanText = text.trim();
+
         // Try to parse: "in X min/mins/minutes"
-        const inMinutesMatch = text.match(/in\s+(\d+)\s*(?:min|mins|minute|minutes)?$/i);
+        const inMinutesMatch = cleanText.match(/in\s+(\d+)\s*(?:min|mins|minute|minutes)?$/i);
         if (inMinutesMatch) {
           parsedMinutes = parseInt(inMinutesMatch[1]);
           expectedTime = new Date(Date.now() + parsedMinutes * 60 * 1000);
         }
 
         // Try to parse: "in X hour/hours"
-        const inHoursMatch = text.match(/in\s+(\d+)\s*(?:hour|hours)$/i);
+        const inHoursMatch = cleanText.match(/in\s+(\d+)\s*(?:hour|hours)$/i);
         if (!expectedTime && inHoursMatch) {
           parsedHours = parseInt(inHoursMatch[1]);
           parsedMinutes = parsedHours * 60;
@@ -211,7 +214,7 @@ function configureBot(bot) {
         }
 
         // Try to parse: "in X hour Y min" or "in X hours Y minutes"
-        const inHoursMinutesMatch = text.match(/in\s+(\d+)\s*(?:hour|hours)\s+(?:and\s+)?(\d+)\s*(?:min|mins|minute|minutes)?$/i);
+        const inHoursMinutesMatch = cleanText.match(/in\s+(\d+)\s*(?:hour|hours)\s+(?:and\s+)?(\d+)\s*(?:min|mins|minute|minutes)?$/i);
         if (!expectedTime && inHoursMinutesMatch) {
           parsedHours = parseInt(inHoursMinutesMatch[1]);
           parsedMinutesValue = parseInt(inHoursMinutesMatch[2]);
@@ -220,7 +223,7 @@ function configureBot(bot) {
         }
 
         // Try to parse: HH:MM format (e.g., "14:42")
-        const timeMatch = text.match(/^(\d{1,2}):(\d{2})$/);
+        const timeMatch = cleanText.match(/^(\d{1,2}):(\d{2})$/);
         if (!expectedTime && timeMatch) {
           const hours = parseInt(timeMatch[1]);
           const minutes = parseInt(timeMatch[2]);
@@ -239,7 +242,7 @@ function configureBot(bot) {
         }
 
         // Try to parse: just a number (assume minutes)
-        const justNumberMatch = text.match(/^(\d+)$/);
+        const justNumberMatch = cleanText.match(/^(\d+)$/);
         if (!expectedTime && justNumberMatch) {
           parsedMinutes = parseInt(justNumberMatch[1]);
           if (parsedMinutes >= 1 && parsedMinutes <= 300) { // Max 5 hours
@@ -248,37 +251,43 @@ function configureBot(bot) {
         }
 
         if (expectedTime) {
-          await prisma.attendanceCheckIn.update({
-            where: { id: checkIn.id },
-            data: { expectedArrivalAt: expectedTime }
-          });
+          try {
+            await prisma.attendanceCheckIn.update({
+              where: { id: checkIn.id },
+              data: { expectedArrivalAt: expectedTime }
+            });
 
-          // Format the expected time
-          const expectedHour = expectedTime.getHours();
-          const expectedMin = expectedTime.getMinutes();
-          const timeStr = `${expectedHour}:${String(expectedMin).padStart(2, '0')}`;
+            // Format the expected time
+            const expectedHour = expectedTime.getHours();
+            const expectedMin = expectedTime.getMinutes();
+            const timeStr = `${expectedHour}:${String(expectedMin).padStart(2, '0')}`;
 
-          // Check if this will be a late arrival
-          const { timeToMinutes, getCurrentTime } = require('./utils/helpers');
-          const expectedTimeStr = `${expectedHour}:${String(expectedMin).padStart(2, '0')}`;
-          const windowEnd = existingEmployee.arrivalWindowEnd;
+            // Check if this will be a late arrival
+            const { timeToMinutes, getCurrentTime } = require('./utils/helpers');
+            const expectedTimeStr = `${expectedHour}:${String(expectedMin).padStart(2, '0')}`;
+            const windowEnd = existingEmployee.arrivalWindowEnd;
 
-          const willBeLate = timeToMinutes(expectedTimeStr) > timeToMinutes(windowEnd);
+            const willBeLate = timeToMinutes(expectedTimeStr) > timeToMinutes(windowEnd);
 
-          let response = `Got it! I'll check with you `;
-          if (parsedMinutes < 120) {
-            response += `in ${parsedMinutes} minutes (at ${timeStr}). 👍`;
-          } else {
-            response += `at ${timeStr}. 👍`;
+            let response = `Got it! I'll check with you `;
+            if (parsedMinutes < 120) {
+              response += `in ${parsedMinutes} minutes (at ${timeStr}). 👍`;
+            } else {
+              response += `at ${timeStr}. 👍`;
+            }
+
+            if (willBeLate) {
+              response += `\n\n⚠️ Note: Your arrival window is ${existingEmployee.arrivalWindowStart}-${windowEnd}. ` +
+                         `Arriving at ${timeStr} will be marked as a late arrival.`;
+            }
+
+            await ctx.reply(response);
+            return;
+          } catch (error) {
+            console.error('Error updating expected arrival time:', error);
+            await ctx.reply('Sorry, something went wrong while saving your arrival time. Please try again.');
+            return;
           }
-
-          if (willBeLate) {
-            response += `\n\n⚠️ Note: Your arrival window is ${existingEmployee.arrivalWindowStart}-${windowEnd}. ` +
-                       `Arriving at ${timeStr} will be marked as a late arrival.`;
-          }
-
-          await ctx.reply(response);
-          return;
         } else {
           // Failed to parse
           await ctx.reply(

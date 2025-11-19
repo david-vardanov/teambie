@@ -17,11 +17,20 @@ const { askArrival, followUpArrival } = require('../flows/arrival');
 const { askDeparture } = require('../flows/departure');
 const { isWorkAnniversary, getYearsOfService } = require('../../utils/vacationHelper');
 
+// Flag to prevent multiple scheduler registrations
+let schedulersStarted = false;
+
 /**
  * Start all schedulers
  */
 async function startSchedulers(bot, prisma) {
+  if (schedulersStarted) {
+    console.log('⚠️  Schedulers already started, skipping...');
+    return;
+  }
+
   console.log('Starting schedulers...');
+  schedulersStarted = true;
 
   // Load settings for report times
   let settings = await prisma.botSettings.findFirst();
@@ -304,14 +313,14 @@ async function followUpPendingArrivals(bot, prisma) {
         }
       }
 
-      // Still ask if they arrived
-      await followUpArrival(bot, prisma, checkIn, employee);
-
-      // Update last reminder timestamp
+      // Update last reminder timestamp BEFORE sending (prevents race condition/duplicates)
       await prisma.attendanceCheckIn.update({
         where: { id: checkIn.id },
         data: { lastArrivalReminderAt: now }
       });
+
+      // Now ask if they arrived
+      await followUpArrival(bot, prisma, checkIn, employee);
     }
   } catch (error) {
     console.error('Follow up pending arrivals error:', error);

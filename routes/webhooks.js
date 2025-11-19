@@ -7,7 +7,7 @@ const prisma = require('../lib/prisma');
  * Queues webhook events and combines them into a single message after a delay
  */
 const messageBatches = new Map(); // task_id -> { events: [], timeout: timeoutId, employee, botSettings }
-const BATCH_DELAY_MS = 10000; // Wait 10 seconds for more events before sending
+const BATCH_DELAY_MS = 30000; // Wait 30 seconds for more events before sending
 
 /**
  * Escape Markdown special characters
@@ -16,6 +16,32 @@ const escapeMarkdown = (text) => {
   if (!text) return '';
   return text.replace(/[_*[\]()~`>#+\-=|{}.!]/g, '\\$&');
 };
+
+/**
+ * Parse description - handles both plain text and Quill Delta JSON format
+ */
+function parseDescription(description) {
+  if (!description) return '';
+
+  // Try to parse as JSON (Quill Delta format)
+  try {
+    const parsed = JSON.parse(description);
+
+    // Check if it's Quill Delta format with ops array
+    if (parsed.ops && Array.isArray(parsed.ops)) {
+      // Extract text from all ops
+      return parsed.ops
+        .map(op => op.insert || '')
+        .join('')
+        .trim();
+    }
+  } catch (e) {
+    // Not JSON or parsing failed, treat as plain text
+  }
+
+  // Return as-is if not JSON
+  return description;
+}
 
 /**
  * Process a batch of events and send a combined notification
@@ -77,9 +103,10 @@ async function processBatch(batchKey, batch) {
             changes.assigneeRemoved.push(item.before?.username || 'Someone');
           } else if (item.field === 'description' || item.field === 'content') {
             // Store latest description update (keep only the last one)
-            const newDesc = item.after?.description || item.after?.content || item.after || '';
-            if (newDesc) {
-              changes.descriptionUpdate = newDesc;
+            const rawDesc = item.after?.description || item.after?.content || item.after || '';
+            if (rawDesc) {
+              // Parse description to handle JSON/rich text formats
+              changes.descriptionUpdate = parseDescription(rawDesc);
             }
           } else if (item.field !== 'status') {
             // Track other changes
@@ -107,6 +134,100 @@ async function processBatch(batchKey, batch) {
   );
 
   console.log(`Combined notification sent to ${employee.name} (${employee.telegramUserId})`);
+
+  // Store task events in database for reporting
+  try {
+    const taskEventsToCreate = [];
+
+    // Get project/list name from task
+    const projectName = task?.list?.name || task?.folder?.name || task?.space?.name || null;
+
+    if (changes.created) {
+      taskEventsToCreate.push({
+        employeeId: employee.id,
+        clickupTaskId: firstEvent.task_id,
+        eventType: 'CREATED',
+        taskName: task?.name || 'Untitled',
+        projectName,
+        occurredAt: new Date()
+      });
+    }
+
+    // Track status changes
+    for (const statusChange of changes.statusChanges) {
+      const [statusFrom, statusTo] = statusChange.split(' → ');
+      taskEventsToCreate.push({
+        employeeId: employee.id,
+        clickupTaskId: firstEvent.task_id,
+        eventType: 'STATUS_CHANGED',
+        taskName: task?.name || 'Untitled',
+        projectName,
+        statusFrom: statusFrom === 'None' ? null : statusFrom,
+        statusTo: statusTo === 'None' ? null : statusTo,
+        occurredAt: new Date()
+      });
+
+      // Check if status changed to "complete" or "closed"
+      if (statusTo && ['complete', 'closed', 'done'].includes(statusTo.toLowerCase())) {
+        taskEventsToCreate.push({
+          employeeId: employee.id,
+          clickupTaskId: firstEvent.task_id,
+          eventType: 'COMPLETED',
+          taskName: task?.name || 'Untitled',
+          projectName,
+          statusTo,
+          occurredAt: new Date()
+        });
+      }
+    }
+
+    // Track assignee changes
+    for (const assignee of changes.assigneeAdded) {
+      taskEventsToCreate.push({
+        employeeId: employee.id,
+        clickupTaskId: firstEvent.task_id,
+        eventType: 'ASSIGNED',
+        taskName: task?.name || 'Untitled',
+        projectName,
+        occurredAt: new Date()
+      });
+    }
+
+    for (const assignee of changes.assigneeRemoved) {
+      taskEventsToCreate.push({
+        employeeId: employee.id,
+        clickupTaskId: firstEvent.task_id,
+        eventType: 'UNASSIGNED',
+        taskName: task?.name || 'Untitled',
+        projectName,
+        occurredAt: new Date()
+      });
+    }
+
+    // Track description updates
+    if (changes.descriptionUpdate) {
+      taskEventsToCreate.push({
+        employeeId: employee.id,
+        clickupTaskId: firstEvent.task_id,
+        eventType: 'DESCRIPTION_UPDATED',
+        taskName: task?.name || 'Untitled',
+        projectName,
+        description: changes.descriptionUpdate.substring(0, 500), // Limit to 500 chars
+        occurredAt: new Date()
+      });
+    }
+
+    // Batch create all events
+    if (taskEventsToCreate.length > 0) {
+      await prisma.taskEvent.createMany({
+        data: taskEventsToCreate
+      });
+      console.log(`Stored ${taskEventsToCreate.length} task events in database`);
+    }
+  } catch (error) {
+    console.error('Error storing task events:', error);
+    // Don't fail the notification if event storage fails
+  }
 }
 
 /**
