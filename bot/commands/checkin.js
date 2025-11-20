@@ -8,7 +8,8 @@ const {
   notifyAdmins,
   formatDate,
   hasEventForDate,
-  isRecurringHomeOfficeDay
+  isRecurringHomeOfficeDay,
+  timeToMinutes
 } = require('../utils/helpers');
 
 /**

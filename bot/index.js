@@ -34,8 +34,8 @@ const { getEmployeeByTelegramId } = require('./utils/helpers');
 
 // Function to configure bot commands and handlers
 function configureBot(bot) {
-  // Use session middleware
-  bot.use(session());
+  // Use session middleware with default empty object
+  bot.use(session({ defaultSession: () => ({}) }));
 
   // Inject prisma into context
   bot.use((ctx, next) => {
