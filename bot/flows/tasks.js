@@ -167,21 +167,91 @@ async function handleTaskAssigneeCallback(ctx, prisma) {
 
   await ctx.answerCbQuery();
 
-  // Now create the task
   try {
     const employee = await prisma.employee.findUnique({
       where: { telegramUserId: BigInt(ctx.from.id) }
     });
 
-    if (!employee?.clickupListId) {
-      await ctx.editMessageText('❌ Your ClickUp list is not configured. Contact admin.');
+    // Get all list IDs (from array or legacy single field)
+    const listIds = employee.clickupListIds?.length > 0
+      ? employee.clickupListIds
+      : (employee.clickupListId ? [employee.clickupListId] : []);
+
+    if (listIds.length === 0) {
+      await ctx.editMessageText('❌ No ClickUp lists configured. Contact admin.');
       delete ctx.session.taskCreation;
       return;
     }
 
+    // If multiple lists, show list selection
+    if (listIds.length > 1) {
+      const clickup = new ClickUpService(employee.clickupApiToken);
+
+      // Fetch list details for all configured lists
+      const keyboard = [];
+      for (const listId of listIds) {
+        try {
+          // Get list details to show name
+          const response = await clickup.client.get(`/list/${listId}`);
+          const listName = response.data.name || listId;
+          keyboard.push([{
+            text: `📋 ${listName}`,
+            callback_data: `task_list_${listId}`
+          }]);
+        } catch (error) {
+          // Fallback to showing just the ID
+          keyboard.push([{
+            text: `📋 List ${listId}`,
+            callback_data: `task_list_${listId}`
+          }]);
+        }
+      }
+
+      ctx.session.taskCreation.step = 'list';
+      return ctx.editMessageText(
+        `✅ Assignee: ${assigneeId ? 'Selected' : 'Unassigned'}\n\n` +
+        'Which list should this task be created in?',
+        { reply_markup: { inline_keyboard: keyboard } }
+      );
+    }
+
+    // Single list - create task directly
+    ctx.session.taskCreation.data.listId = listIds[0];
+    return createTaskFromSession(ctx, prisma, employee);
+  } catch (error) {
+    console.error('Error in assignee callback:', error);
+    await ctx.editMessageText('❌ Error: ' + error.message);
+    delete ctx.session.taskCreation;
+  }
+}
+
+/**
+ * Handle list selection callback
+ */
+async function handleTaskListCallback(ctx, prisma) {
+  const listId = ctx.match[1];
+  ctx.session.taskCreation.data.listId = listId;
+
+  await ctx.answerCbQuery();
+
+  const employee = await prisma.employee.findUnique({
+    where: { telegramUserId: BigInt(ctx.from.id) }
+  });
+
+  return createTaskFromSession(ctx, prisma, employee);
+}
+
+/**
+ * Create task from session data
+ */
+async function createTaskFromSession(ctx, prisma, employee) {
+  try {
     const settings = await prisma.botSettings.findFirst();
     const clickup = new ClickUpService(settings.clickupApiToken);
     const { data } = ctx.session.taskCreation;
+
+    const listId = data.listId;
+    const assigneeId = data.assigneeId;
 
     const taskData = {
       name: data.name,
@@ -192,7 +262,7 @@ async function handleTaskAssigneeCallback(ctx, prisma) {
       timeEstimate: data.duration || undefined
     };
 
-    const task = await clickup.createTask(employee.clickupListId, taskData);
+    const task = await clickup.createTask(listId, taskData);
 
     await ctx.editMessageText(
       `✅ Task created successfully!\n\n` +
@@ -205,7 +275,7 @@ async function handleTaskAssigneeCallback(ctx, prisma) {
     );
 
     // Notify assignee if someone else created the task
-    if (assigneeId && assigneeId !== ctx.session.taskCreation.data.creatorClickupId) {
+    if (assigneeId && assigneeId !== employee.clickupUserId) {
       const assignee = await prisma.employee.findUnique({
         where: { clickupUserId: assigneeId }
       });
@@ -464,6 +534,7 @@ module.exports = {
   handleTaskCreationStep,
   handleTaskStatusCallback,
   handleTaskAssigneeCallback,
+  handleTaskListCallback,
   startTaskEditFlow,
   handleTaskEditCallback,
   handleTaskEditValueUpdate

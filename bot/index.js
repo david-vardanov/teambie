@@ -351,6 +351,7 @@ function configureBot(bot) {
   // Handle callback queries (inline keyboard buttons)
   bot.action(/^task_status_(.+)/, (ctx) => taskFlows.handleTaskStatusCallback(ctx, prisma));
   bot.action(/^task_assign_(.+)/, (ctx) => taskFlows.handleTaskAssigneeCallback(ctx, prisma));
+  bot.action(/^task_list_(.+)/, (ctx) => taskFlows.handleTaskListCallback(ctx, prisma));
   bot.action(/^edittask_(.+)/, (ctx) => taskCommands.handleEditTaskCallback(ctx, prisma));
   bot.action(/^edit_(.+)_(.+)/, (ctx) => taskFlows.handleTaskEditCallback(ctx, prisma));
   bot.action(/^editstatus_(.+)_(.+)/, async (ctx) => {

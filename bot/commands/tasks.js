@@ -31,22 +31,36 @@ async function newTask(ctx) {
 }
 
 /**
- * /tasks - List all tasks in the employee's configured list
+ * /tasks - List all tasks in the employee's configured list (ADMIN ONLY)
  */
 async function listTasks(ctx) {
   const prisma = ctx.prisma;
   try {
     console.log('/tasks command called');
+
+    const employee = await prisma.employee.findUnique({
+      where: { telegramUserId: BigInt(ctx.from.id) }
+    });
+
+    if (!employee) {
+      return ctx.reply('❌ You need to link your account first. Use /start');
+    }
+
+    // Check if user is admin
+    const user = await prisma.user.findUnique({
+      where: { email: employee.email }
+    });
+
+    if (!user || user.role !== 'ADMIN') {
+      return ctx.reply('❌ This command is restricted to admins only. Use /mytasks to see your assigned tasks.');
+    }
+
     const settings = await prisma.botSettings.findFirst();
 
     if (!settings?.clickupEnabled) {
       console.log('ClickUp not enabled');
       return ctx.reply('❌ ClickUp integration is not enabled. Contact your admin.');
     }
-
-    const employee = await prisma.employee.findUnique({
-      where: { telegramUserId: BigInt(ctx.from.id) }
-    });
 
     if (!employee?.clickupApiToken) {
       return ctx.reply('❌ Your ClickUp API token is not configured. Contact your admin.');
@@ -97,8 +111,7 @@ async function listTasks(ctx) {
     }
 
     message += `Total: ${tasks.length} task(s)\n`;
-    message += `\nUse /task\\_\\[id\\] to view details\n`;
-    message += `Use /mytasks to see only your tasks`;
+    message += `\nUse /task\\_\\[id\\] to view details`;
 
     return ctx.reply(message, { parse_mode: 'Markdown' });
   } catch (error) {
@@ -113,7 +126,7 @@ async function listTasks(ctx) {
 }
 
 /**
- * /mytasks - List tasks assigned to current user
+ * /mytasks - List tasks assigned to current user (searches across entire workspace)
  */
 async function myTasks(ctx) {
   const prisma = ctx.prisma;
@@ -130,8 +143,8 @@ async function myTasks(ctx) {
       return ctx.reply('❌ Your ClickUp API token is not configured. Contact admin.');
     }
 
-    if (!employee?.clickupListId) {
-      return ctx.reply('❌ Your ClickUp list is not configured. Contact admin.');
+    if (!employee?.clickupWorkspaceId) {
+      return ctx.reply('❌ Your ClickUp workspace is not configured. Contact admin.');
     }
 
     const settings = await prisma.botSettings.findFirst();
@@ -140,7 +153,9 @@ async function myTasks(ctx) {
     }
 
     const clickup = new ClickUpService(employee.clickupApiToken);
-    const tasks = await clickup.getTasks(employee.clickupListId, {
+
+    // Search across entire workspace for tasks assigned to this user
+    const tasks = await clickup.getTeamTasks(employee.clickupWorkspaceId, {
       assignees: [employee.clickupUserId],
       includeSubtasks: true,
       includeClosed: false
@@ -170,8 +185,9 @@ async function myTasks(ctx) {
         const dueDate = task.due_date
           ? ` \\- Due: ${new Date(parseInt(task.due_date)).toLocaleDateString()}`
           : '';
+        const listName = task.list?.name ? ` \\[${escapeMarkdown(task.list.name)}\\]` : '';
         const parentMark = task.parent ? '  ↳ ' : '  • ';
-        message += `${parentMark}${escapeMarkdown(task.name)}${dueDate}\n    \`/task_${task.id}\`\n`;
+        message += `${parentMark}${escapeMarkdown(task.name)}${listName}${dueDate}\n    \`/task_${task.id}\`\n`;
       }
       message += '\n';
     }

@@ -52,8 +52,11 @@ model Employee {
   clickupUserId             String?             @unique
   clickupWorkspaceId        String?
   clickupSpaceId            String?
-  clickupListId             String?
-  clickupWebhookId          String?             // Webhook ID for this employee's list
+  clickupListId             String?             // Legacy single list (for backward compatibility)
+  clickupListIds            String[]            @default([])  // Multiple lists
+  clickupFolderIds          String[]            @default([])  // Multiple folders
+  clickupWebhookId          String?             // Legacy single webhook
+  clickupWebhookIds         String[]            @default([])  // Webhook IDs for multiple lists
 
   attendanceCheckIns        AttendanceCheckIn[]
   taskEvents                TaskEvent[]

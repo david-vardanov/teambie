@@ -338,4 +338,40 @@ router.get('/clickup/lists/:spaceId', requireAdmin, async (req, res) => {
   }
 });
 
+// Get ClickUp folders in a space (admin only)
+router.get('/clickup/folders/:spaceId', requireAdmin, async (req, res) => {
+  try {
+    const settings = await getBotSettings();
+    if (!settings.clickupApiToken) {
+      return res.status(400).json({ error: 'ClickUp API token not configured' });
+    }
+
+    const ClickUpService = require('../services/clickup');
+    const clickup = new ClickUpService(settings.clickupApiToken);
+    const folders = await clickup.getFolders(req.params.spaceId);
+
+    res.json(folders);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Get ClickUp lists in a folder (admin only)
+router.get('/clickup/folder/:folderId/lists', requireAdmin, async (req, res) => {
+  try {
+    const settings = await getBotSettings();
+    if (!settings.clickupApiToken) {
+      return res.status(400).json({ error: 'ClickUp API token not configured' });
+    }
+
+    const ClickUpService = require('../services/clickup');
+    const clickup = new ClickUpService(settings.clickupApiToken);
+    const lists = await clickup.getLists(req.params.folderId);
+
+    res.json(lists);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
 module.exports = router;

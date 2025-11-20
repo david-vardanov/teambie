@@ -130,6 +130,34 @@ class ClickUpService {
   }
 
   /**
+   * Get tasks from a team/workspace filtered by assignee
+   * This searches across all lists in the workspace
+   */
+  async getTeamTasks(workspaceId, options = {}) {
+    try {
+      const params = new URLSearchParams();
+
+      if (options.assignees) {
+        options.assignees.forEach(id => params.append('assignees[]', id));
+      }
+      if (options.statuses) {
+        options.statuses.forEach(status => params.append('statuses[]', status));
+      }
+      if (options.includeSubtasks !== false) {
+        params.append('subtasks', 'true');
+      }
+      if (options.includeClosed) {
+        params.append('include_closed', 'true');
+      }
+
+      const response = await this.client.get(`/team/${workspaceId}/task?${params.toString()}`);
+      return response.data.tasks;
+    } catch (error) {
+      throw this.handleError(error);
+    }
+  }
+
+  /**
    * Create a new task
    * @param {string} listId - The list ID where task will be created
    * @param {Object} taskData - Task data

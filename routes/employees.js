@@ -247,7 +247,9 @@ router.put('/:id', async (req, res) => {
       clickupUserId,
       clickupWorkspaceId,
       clickupSpaceId,
-      clickupListId
+      clickupListId,
+      clickupListIds,
+      clickupFolderIds
     } = req.body;
 
     // Handle recurringHomeOfficeDays - can be array or single value
@@ -267,6 +269,26 @@ router.put('/:id', async (req, res) => {
 
     // Don't save masked token - keep existing if token contains "..."
     const isMaskedClickUp = clickupApiToken && clickupApiToken.includes('...');
+
+    // Handle clickupListIds - can be array or single value or comma-separated string
+    let listIds = [];
+    if (clickupListIds) {
+      if (Array.isArray(clickupListIds)) {
+        listIds = clickupListIds.filter(id => id);
+      } else if (typeof clickupListIds === 'string') {
+        listIds = clickupListIds.split(',').map(id => id.trim()).filter(id => id);
+      }
+    }
+
+    // Handle clickupFolderIds - can be array or single value or comma-separated string
+    let folderIds = [];
+    if (clickupFolderIds) {
+      if (Array.isArray(clickupFolderIds)) {
+        folderIds = clickupFolderIds.filter(id => id);
+      } else if (typeof clickupFolderIds === 'string') {
+        folderIds = clickupFolderIds.split(',').map(id => id.trim()).filter(id => id);
+      }
+    }
 
     // Update employee
     const employee = await prisma.employee.update({
@@ -288,7 +310,9 @@ router.put('/:id', async (req, res) => {
         clickupUserId: clickupUserId || null,
         clickupWorkspaceId: clickupWorkspaceId || null,
         clickupSpaceId: clickupSpaceId || null,
-        clickupListId: clickupListId || null
+        clickupListId: clickupListId || null,
+        clickupListIds: listIds,
+        clickupFolderIds: folderIds
       }
     });
 
@@ -528,15 +552,24 @@ router.post('/:id/demote', requireAdmin, async (req, res) => {
   }
 });
 
-// Register ClickUp webhook for employee's list
+// Register ClickUp webhooks for employee's lists
 router.post('/:id/clickup/register-webhook', async (req, res) => {
   try {
     const employee = await prisma.employee.findUnique({
       where: { id: parseInt(req.params.id) }
     });
 
-    if (!employee || !employee.clickupListId || !employee.clickupWorkspaceId) {
+    if (!employee || !employee.clickupWorkspaceId) {
       return res.status(400).json({ error: 'Employee ClickUp configuration incomplete' });
+    }
+
+    // Get all list IDs (from array or legacy single field)
+    const listIds = employee.clickupListIds.length > 0
+      ? employee.clickupListIds
+      : (employee.clickupListId ? [employee.clickupListId] : []);
+
+    if (listIds.length === 0) {
+      return res.status(400).json({ error: 'No ClickUp lists configured for employee' });
     }
 
     if (!employee.clickupApiToken) {
@@ -546,10 +579,14 @@ router.post('/:id/clickup/register-webhook', async (req, res) => {
     const ClickUpService = require('../services/clickup');
     const clickup = new ClickUpService(employee.clickupApiToken);
 
-    // Delete existing webhook if any
-    if (employee.clickupWebhookId) {
+    // Delete existing webhooks
+    const existingWebhookIds = employee.clickupWebhookIds.length > 0
+      ? employee.clickupWebhookIds
+      : (employee.clickupWebhookId ? [employee.clickupWebhookId] : []);
+
+    for (const webhookId of existingWebhookIds) {
       try {
-        await clickup.deleteWebhook(employee.clickupWebhookId);
+        await clickup.deleteWebhook(webhookId);
       } catch (error) {
         console.log('Failed to delete existing webhook:', error.message);
       }
@@ -558,7 +595,7 @@ router.post('/:id/clickup/register-webhook', async (req, res) => {
     // Get the webhook URL
     const webhookUrl = `${process.env.WEBHOOK_BASE_URL || 'http://localhost:3000'}/webhooks/clickup`;
 
-    // Create new webhook
+    // Create webhooks for all lists
     const events = [
       'taskCreated',
       'taskUpdated',
@@ -570,35 +607,51 @@ router.post('/:id/clickup/register-webhook', async (req, res) => {
       'taskPriorityUpdated'
     ];
 
-    const webhook = await clickup.createWebhook(
-      employee.clickupWorkspaceId,
-      webhookUrl,
-      employee.clickupListId,
-      events
-    );
+    const newWebhookIds = [];
+    for (const listId of listIds) {
+      try {
+        const webhook = await clickup.createWebhook(
+          employee.clickupWorkspaceId,
+          webhookUrl,
+          listId,
+          events
+        );
+        newWebhookIds.push(webhook.id);
+      } catch (error) {
+        console.error(`Failed to create webhook for list ${listId}:`, error.message);
+      }
+    }
 
-    // Update employee with webhook ID
+    // Update employee with webhook IDs
     await prisma.employee.update({
       where: { id: employee.id },
-      data: { clickupWebhookId: webhook.id }
+      data: {
+        clickupWebhookIds: newWebhookIds,
+        clickupWebhookId: newWebhookIds[0] || null // Keep legacy field updated
+      }
     });
 
-    res.json({ success: true, webhookId: webhook.id });
+    res.json({ success: true, webhookIds: newWebhookIds, count: newWebhookIds.length });
   } catch (error) {
-    console.error('Error registering webhook:', error);
+    console.error('Error registering webhooks:', error);
     res.status(500).json({ error: error.message });
   }
 });
 
-// Unregister ClickUp webhook for employee
+// Unregister ClickUp webhooks for employee
 router.post('/:id/clickup/unregister-webhook', async (req, res) => {
   try {
     const employee = await prisma.employee.findUnique({
       where: { id: parseInt(req.params.id) }
     });
 
-    if (!employee || !employee.clickupWebhookId) {
-      return res.status(400).json({ error: 'No webhook registered' });
+    // Get all webhook IDs (from array or legacy single field)
+    const webhookIds = employee.clickupWebhookIds.length > 0
+      ? employee.clickupWebhookIds
+      : (employee.clickupWebhookId ? [employee.clickupWebhookId] : []);
+
+    if (webhookIds.length === 0) {
+      return res.status(400).json({ error: 'No webhooks registered' });
     }
 
     if (!employee.clickupApiToken) {
@@ -608,17 +661,27 @@ router.post('/:id/clickup/unregister-webhook', async (req, res) => {
     const ClickUpService = require('../services/clickup');
     const clickup = new ClickUpService(employee.clickupApiToken);
 
-    await clickup.deleteWebhook(employee.clickupWebhookId);
+    // Delete all webhooks
+    for (const webhookId of webhookIds) {
+      try {
+        await clickup.deleteWebhook(webhookId);
+      } catch (error) {
+        console.log('Failed to delete webhook:', error.message);
+      }
+    }
 
-    // Remove webhook ID from employee
+    // Remove webhook IDs from employee
     await prisma.employee.update({
       where: { id: employee.id },
-      data: { clickupWebhookId: null }
+      data: {
+        clickupWebhookIds: [],
+        clickupWebhookId: null
+      }
     });
 
-    res.json({ success: true });
+    res.json({ success: true, deletedCount: webhookIds.length });
   } catch (error) {
-    console.error('Error unregistering webhook:', error);
+    console.error('Error unregistering webhooks:', error);
     res.status(500).json({ error: error.message });
   }
 });
@@ -726,6 +789,48 @@ router.get('/:id/clickup/lists/:spaceId', async (req, res) => {
     res.json(lists);
   } catch (error) {
     console.error('Error fetching ClickUp lists:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Get folders in a space for employee
+router.get('/:id/clickup/folders/:spaceId', async (req, res) => {
+  try {
+    const employee = await prisma.employee.findUnique({
+      where: { id: parseInt(req.params.id) }
+    });
+
+    if (!employee?.clickupApiToken) {
+      return res.status(400).json({ error: 'Employee ClickUp API token not configured' });
+    }
+
+    const ClickUpService = require('../services/clickup');
+    const clickup = new ClickUpService(employee.clickupApiToken);
+    const folders = await clickup.getFolders(req.params.spaceId);
+    res.json(folders);
+  } catch (error) {
+    console.error('Error fetching ClickUp folders:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Get lists in a folder for employee
+router.get('/:id/clickup/folder/:folderId/lists', async (req, res) => {
+  try {
+    const employee = await prisma.employee.findUnique({
+      where: { id: parseInt(req.params.id) }
+    });
+
+    if (!employee?.clickupApiToken) {
+      return res.status(400).json({ error: 'Employee ClickUp API token not configured' });
+    }
+
+    const ClickUpService = require('../services/clickup');
+    const clickup = new ClickUpService(employee.clickupApiToken);
+    const lists = await clickup.getLists(req.params.folderId);
+    res.json(lists);
+  } catch (error) {
+    console.error('Error fetching ClickUp folder lists:', error);
     res.status(500).json({ error: error.message });
   }
 });
