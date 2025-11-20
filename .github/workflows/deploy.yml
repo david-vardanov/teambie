@@ -35,7 +35,7 @@ jobs:
 
             echo "🗄️ Updating database schema..."
             npx prisma generate
-            npx prisma migrate deploy
+            npx prisma migrate deploy || { echo "❌ Migration failed!"; exit 1; }
 
             echo "🚀 Restarting application..."
             npx pm2 restart all || npx pm2 start server.js --name teambie
