@@ -1602,6 +1602,27 @@ h2 {
     animation: slideInFromRight 0.3s ease;
 }
 
+/* Month filter active state */
+.calendar-table .month-header {
+    cursor: pointer;
+    transition: background-color 0.2s ease, transform 0.2s ease;
+}
+
+.calendar-table .month-header:hover {
+    background-color: #4a6a89 !important;
+}
+
+.calendar-table .month-header.month-filter-active {
+    background-color: rgba(52, 152, 219, 0.9) !important;
+    position: relative;
+}
+
+.calendar-table .month-header.month-filter-active::after {
+    content: '👁';
+    margin-left: 8px;
+    font-size: 0.9rem;
+}
+
 .clear-filter-btn:hover {
     background-color: #2980b9;
     transform: translateY(-2px);

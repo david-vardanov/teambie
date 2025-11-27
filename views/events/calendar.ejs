@@ -270,6 +270,7 @@ document.addEventListener('DOMContentLoaded', function() {
     // ============================================
 
     let currentFilteredEmployeeId = null;
+    let currentFilteredMonth = null;
     let removedElements = { headers: [], cells: [], rows: [], monthHeaders: [] };
     const clearFilterBtn = document.getElementById('clearFilterBtn');
     const employeeNameCells = document.querySelectorAll('.calendar-table tbody td.employee-name a');
@@ -478,6 +479,218 @@ document.addEventListener('DOMContentLoaded', function() {
 
         showNotification('Filter cleared - showing all employees', 'success');
     }
+
+    // ============================================
+    // MONTH FILTER FUNCTIONALITY
+    // ============================================
+
+    const monthHeaders = document.querySelectorAll('.calendar-table thead th.month-header');
+
+    monthHeaders.forEach(monthHeader => {
+        monthHeader.style.cursor = 'pointer';
+
+        monthHeader.addEventListener('click', function(e) {
+            const clickedMonth = this.dataset.month;
+
+            if (!clickedMonth) return;
+
+            // If clicking the same month, clear filter
+            if (currentFilteredMonth === clickedMonth) {
+                clearMonthFilter();
+                return;
+            }
+
+            // If employee filter is active, clear it first
+            if (currentFilteredEmployeeId) {
+                clearEmployeeFilter();
+            }
+
+            // Set current filtered month
+            currentFilteredMonth = clickedMonth;
+            removedElements = { headers: [], cells: [], rows: [], monthHeaders: [] };
+
+            // Find all days in this month that have events (from any employee)
+            const allDayCells = document.querySelectorAll('.calendar-table tbody .day-cell');
+            const daysWithEvents = new Set();
+
+            allDayCells.forEach((cell) => {
+                if (cell.classList.contains('has-event')) {
+                    const date = cell.dataset.date;
+                    if (date) {
+                        // Check if this date is in the clicked month
+                        const dateMonth = parseInt(date.split('-')[1]) - 1; // Convert to 0-indexed
+                        if (dateMonth.toString() === clickedMonth) {
+                            daysWithEvents.add(date);
+                        }
+                    }
+                }
+            });
+
+            // Remove day headers that are not in this month or don't have events
+            const dayHeaders = document.querySelectorAll('.calendar-table thead th.day-header');
+            dayHeaders.forEach((header) => {
+                const headerDate = header.dataset.date;
+                const headerMonth = header.dataset.month;
+
+                if (headerMonth !== clickedMonth) {
+                    // Hide days from other months
+                    removedElements.headers.push({
+                        element: header,
+                        parent: header.parentNode,
+                        nextSibling: header.nextSibling
+                    });
+                    header.remove();
+                } else if (headerDate && !daysWithEvents.has(headerDate)) {
+                    // Hide empty days within this month
+                    removedElements.headers.push({
+                        element: header,
+                        parent: header.parentNode,
+                        nextSibling: header.nextSibling
+                    });
+                    header.remove();
+                }
+            });
+
+            // Remove corresponding cells from ALL rows
+            const allBodyRows = document.querySelectorAll('.calendar-table tbody tr');
+            allBodyRows.forEach(row => {
+                const cellsInRow = row.querySelectorAll('.day-cell');
+                cellsInRow.forEach(cell => {
+                    const cellDate = cell.dataset.date;
+                    if (cellDate) {
+                        const cellMonth = parseInt(cellDate.split('-')[1]) - 1;
+
+                        if (cellMonth.toString() !== clickedMonth) {
+                            // Hide cells from other months
+                            removedElements.cells.push({
+                                element: cell,
+                                parent: cell.parentNode,
+                                nextSibling: cell.nextSibling
+                            });
+                            cell.remove();
+                        } else if (!daysWithEvents.has(cellDate)) {
+                            // Hide empty cells within this month
+                            removedElements.cells.push({
+                                element: cell,
+                                parent: cell.parentNode,
+                                nextSibling: cell.nextSibling
+                            });
+                            cell.remove();
+                        }
+                    }
+                });
+            });
+
+            // Hide other month headers and update colspan for the filtered month
+            const allMonthHeaders = document.querySelectorAll('.calendar-table thead th.month-header');
+            const visibleDayHeaders = document.querySelectorAll('.calendar-table thead th.day-header');
+
+            // Count visible days for the filtered month
+            let visibleDaysCount = 0;
+            visibleDayHeaders.forEach(header => {
+                if (header.dataset.month === clickedMonth) {
+                    visibleDaysCount++;
+                }
+            });
+
+            allMonthHeaders.forEach(mh => {
+                const month = mh.dataset.month;
+                const originalColspan = mh.dataset.originalColspan;
+
+                if (month !== clickedMonth) {
+                    // Store and remove other month headers
+                    removedElements.monthHeaders.push({
+                        element: mh,
+                        parent: mh.parentNode,
+                        nextSibling: mh.nextSibling,
+                        originalColspan: originalColspan
+                    });
+                    mh.remove();
+                } else {
+                    // Update colspan for filtered month
+                    mh.setAttribute('colspan', visibleDaysCount);
+                    mh.classList.add('month-filter-active');
+                }
+            });
+
+            // Add filtered-view class to table wrapper for expanded cells
+            if (tableWrapper) {
+                tableWrapper.classList.add('filtered-view');
+            }
+
+            // Show clear filter button
+            clearFilterBtn.classList.add('active');
+
+            // Get month name from the header text
+            const monthName = this.textContent.trim();
+            showNotification(`Showing only days with events in ${monthName}`, 'info');
+        });
+    });
+
+    function clearMonthFilter() {
+        // Clear filtered month
+        currentFilteredMonth = null;
+
+        // Restore all removed cells
+        removedElements.cells.forEach(item => {
+            if (item.nextSibling) {
+                item.parent.insertBefore(item.element, item.nextSibling);
+            } else {
+                item.parent.appendChild(item.element);
+            }
+        });
+
+        // Restore all removed headers
+        removedElements.headers.forEach(item => {
+            if (item.nextSibling) {
+                item.parent.insertBefore(item.element, item.nextSibling);
+            } else {
+                item.parent.appendChild(item.element);
+            }
+        });
+
+        // Restore all removed month headers
+        removedElements.monthHeaders.forEach(item => {
+            if (item.nextSibling) {
+                item.parent.insertBefore(item.element, item.nextSibling);
+            } else {
+                item.parent.appendChild(item.element);
+            }
+        });
+
+        // Restore original colspan values for all month headers
+        const allMonthHeaders = document.querySelectorAll('.calendar-table thead th.month-header');
+        allMonthHeaders.forEach(monthHeader => {
+            const originalColspan = monthHeader.dataset.originalColspan;
+            if (originalColspan) {
+                monthHeader.setAttribute('colspan', originalColspan);
+            }
+            monthHeader.classList.remove('month-filter-active');
+        });
+
+        // Clear the removed elements storage
+        removedElements = { headers: [], cells: [], rows: [], monthHeaders: [] };
+
+        // Remove filtered-view class from table wrapper
+        if (tableWrapper) {
+            tableWrapper.classList.remove('filtered-view');
+        }
+
+        // Hide clear filter button
+        clearFilterBtn.classList.remove('active');
+
+        showNotification('Month filter cleared - showing all months', 'success');
+    }
+
+    // Update clear filter button to handle both filters
+    clearFilterBtn.removeEventListener('click', clearEmployeeFilter);
+    clearFilterBtn.addEventListener('click', function() {
+        if (currentFilteredEmployeeId) {
+            clearEmployeeFilter();
+        } else if (currentFilteredMonth) {
+            clearMonthFilter();
+        }
+    });
 
     // Auto-scroll to today's column immediately
     const todayCell = document.querySelector('.calendar-table .day-header.today');
