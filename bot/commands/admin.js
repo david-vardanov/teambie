@@ -614,15 +614,15 @@ async function report(ctx) {
     const monthsLabel = dateRanges.map(d => d.monthName).join(', ');
     let message = `📊 ${monthsLabel} ${currentYear}\n\n`;
 
-    // Event type emojis
-    const eventEmoji = {
-      'VACATION': '🏖',
-      'SICK_DAY': '🤒',
-      'HOME_OFFICE': '🏠',
-      'HOLIDAY': '🎉',
-      'LATE_LEFT_EARLY': '⏰',
-      'DAY_OFF_PAID': '💰',
-      'DAY_OFF_UNPAID': '📅'
+    // Event type info with emoji and label
+    const eventInfo = {
+      'VACATION': { emoji: '🏖', label: 'Vacation' },
+      'SICK_DAY': { emoji: '🤒', label: 'Sick' },
+      'HOME_OFFICE': { emoji: '🏠', label: 'Home Office' },
+      'HOLIDAY': { emoji: '🎉', label: 'Holiday' },
+      'LATE_LEFT_EARLY': { emoji: '⏰', label: 'Late/Early' },
+      'DAY_OFF_PAID': { emoji: '💰', label: 'Day Off Paid' },
+      'DAY_OFF_UNPAID': { emoji: '📅', label: 'Day Off Unpaid' }
     };
 
     // Helper to format a single date compactly
@@ -740,40 +740,17 @@ async function report(ctx) {
         eventsByType[type].push(event);
       }
 
-      // Build compact line for each employee
+      // Build lines for each employee with labels
       const eventParts = [];
       for (const type of Object.keys(eventsByType)) {
         const typeEvents = eventsByType[type];
-        const emoji = eventEmoji[type] || '📅';
+        const info = eventInfo[type] || { emoji: '📅', label: type };
         const mergedRanges = mergeConsecutiveEvents(typeEvents);
-        eventParts.push(`${emoji} ${formatMergedRanges(mergedRanges)}`);
+        eventParts.push(`${info.emoji} ${info.label}: ${formatMergedRanges(mergedRanges)}`);
       }
 
       message += `👤 ${empData.name}\n   ${eventParts.join('\n   ')}\n\n`;
     }
-
-    // Add compact summary
-    message += `───────────\n📈 `;
-
-    // Count total days by type (not events)
-    const typeDayCounts = {};
-    for (const event of events) {
-      if (!event.isGlobal && isEventInRequestedMonths(event)) {
-        const type = event.type;
-        const start = new Date(event.startDate);
-        const end = event.endDate ? new Date(event.endDate) : start;
-        // Count actual days
-        const days = Math.ceil((end - start) / (1000 * 60 * 60 * 24)) + 1;
-        typeDayCounts[type] = (typeDayCounts[type] || 0) + days;
-      }
-    }
-
-    const summaryParts = [];
-    for (const type of Object.keys(typeDayCounts)) {
-      const emoji = eventEmoji[type] || '📅';
-      summaryParts.push(`${emoji}${typeDayCounts[type]}`);
-    }
-    message += summaryParts.join(' ');
 
     // Telegram has a message limit of 4096 characters
     // Split message if needed
