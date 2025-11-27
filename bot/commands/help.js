@@ -60,7 +60,7 @@ module.exports = async (ctx) => {
       helpMessage += `/teamstatus - View current team presence\n`;
       helpMessage += `/pending - View and moderate pending events\n`;
       helpMessage += `/weekreport - View weekly statistics\n`;
-      helpMessage += `/report dec jan - Monthly report by employee\n`;
+      helpMessage += `/report dec-25 jan-26 - Monthly report\n`;
       helpMessage += `/broadcast - Send announcement to all employees\n`;
       helpMessage += `/admins - View list of system admins\n`;
       helpMessage += `/globalholiday YYYY-MM-DD Name - Create global holiday\n`;

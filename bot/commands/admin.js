@@ -500,12 +500,12 @@ async function report(ctx) {
     if (!text) {
       await ctx.reply(
         '📊 Custom Monthly Report\n\n' +
-        'Usage: /report <month1> [month2] [month3]...\n\n' +
+        'Usage: /report <month-year> [month-year]...\n\n' +
         'Examples:\n' +
-        '/report december\n' +
-        '/report december january\n' +
-        '/report nov dec jan feb\n\n' +
-        'Supported formats: full names (december) or abbreviations (dec)'
+        '/report dec-25\n' +
+        '/report dec-25 jan-26\n' +
+        '/report nov-25 dec-25 jan-26\n\n' +
+        'Format: month-YY (e.g., dec-25 for December 2025)'
       );
       return;
     }
@@ -531,50 +531,54 @@ async function report(ctx) {
       'July', 'August', 'September', 'October', 'November', 'December'
     ];
 
-    // Parse requested months
+    // Parse requested months with years
     const words = text.split(/[\s,]+/).filter(w => w.length > 0);
-    const requestedMonths = [];
+    const dateRanges = [];
 
     for (const word of words) {
-      if (monthMap.hasOwnProperty(word)) {
-        if (!requestedMonths.includes(monthMap[word])) {
-          requestedMonths.push(monthMap[word]);
+      // Try to parse format: month-YY or month-YYYY (e.g., dec-25, december-2025)
+      const match = word.match(/^([a-z]+)-(\d{2,4})$/i);
+
+      if (match) {
+        const monthStr = match[1].toLowerCase();
+        let yearStr = match[2];
+
+        if (!monthMap.hasOwnProperty(monthStr)) {
+          await ctx.reply(`⚠️ Unknown month: "${monthStr}"\n\nUse: jan, feb, mar, apr, may, jun, jul, aug, sep, oct, nov, dec`);
+          return;
         }
+
+        const month = monthMap[monthStr];
+        let year = parseInt(yearStr);
+
+        // Convert 2-digit year to 4-digit (25 -> 2025)
+        if (year < 100) {
+          year = 2000 + year;
+        }
+
+        const startDate = new Date(year, month, 1);
+        const endDate = new Date(year, month + 1, 0, 23, 59, 59, 999);
+
+        dateRanges.push({
+          month,
+          year,
+          startDate,
+          endDate,
+          monthName: monthNames[month]
+        });
       } else {
-        await ctx.reply(`⚠️ Unknown month: "${word}"\n\nPlease use month names like "december" or "dec"`);
+        await ctx.reply(`⚠️ Invalid format: "${word}"\n\nUse format: month-YY (e.g., dec-25, jan-26)`);
         return;
       }
     }
 
-    if (requestedMonths.length === 0) {
+    if (dateRanges.length === 0) {
       await ctx.reply('⚠️ No valid months specified. Please try again.');
       return;
     }
 
-    // Sort months in order
-    requestedMonths.sort((a, b) => a - b);
-
-    // Determine the year (current year, or if months are in the future relative to now, might span years)
-    const now = new Date();
-    const currentYear = now.getFullYear();
-    const currentMonth = now.getMonth();
-
-    // Calculate date ranges for each month
-    const dateRanges = requestedMonths.map(month => {
-      // If requesting a month that's after current month, assume previous year
-      // Otherwise use current year
-      let year = currentYear;
-      if (month > currentMonth) {
-        // Could be previous year (e.g., requesting December in January)
-        // But for simplicity, we'll use current year and let admin specify
-        // For now, assume current year
-      }
-
-      const startDate = new Date(year, month, 1);
-      const endDate = new Date(year, month + 1, 0, 23, 59, 59, 999); // Last day of month
-
-      return { month, year, startDate, endDate, monthName: monthNames[month] };
-    });
+    // Sort by date
+    dateRanges.sort((a, b) => a.startDate - b.startDate);
 
     // Get overall date range
     const overallStart = dateRanges[0].startDate;
@@ -611,8 +615,8 @@ async function report(ctx) {
     });
 
     // Build report header
-    const monthsLabel = dateRanges.map(d => d.monthName).join(', ');
-    let message = `📊 ${monthsLabel} ${currentYear}\n\n`;
+    const monthsLabel = dateRanges.map(d => `${d.monthName} ${d.year}`).join(', ');
+    let message = `📊 ${monthsLabel}\n\n`;
 
     // Event type info with emoji and label
     const eventInfo = {
