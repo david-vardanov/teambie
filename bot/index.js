@@ -65,6 +65,7 @@ function configureBot(bot) {
   bot.command('teamstatus', adminCommands.teamStatus);
   bot.command('pending', adminCommands.pending);
   bot.command('weekreport', adminCommands.weekReport);
+  bot.command('report', adminCommands.report);
   bot.command('broadcast', adminCommands.broadcast);
   bot.command('admins', adminCommands.admins);
   bot.command('globalholiday', adminCommands.holiday);

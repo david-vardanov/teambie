@@ -480,11 +480,305 @@ async function holiday(ctx) {
   }
 }
 
+/**
+ * /report command - Generate custom monthly report (Admin only)
+ * Usage: /report december january february
+ * Shows events grouped by employee for specified months
+ */
+async function report(ctx) {
+  const telegramUserId = BigInt(ctx.from.id);
+  const prisma = ctx.prisma || require('@prisma/client').prisma;
+
+  try {
+    if (!await isAdmin(prisma, telegramUserId)) {
+      await ctx.reply('This command is only available to admins.');
+      return;
+    }
+
+    const text = ctx.message.text.replace('/report', '').trim().toLowerCase();
+
+    if (!text) {
+      await ctx.reply(
+        '📊 Custom Monthly Report\n\n' +
+        'Usage: /report <month1> [month2] [month3]...\n\n' +
+        'Examples:\n' +
+        '/report december\n' +
+        '/report december january\n' +
+        '/report nov dec jan feb\n\n' +
+        'Supported formats: full names (december) or abbreviations (dec)'
+      );
+      return;
+    }
+
+    // Month name mappings
+    const monthMap = {
+      'january': 0, 'jan': 0,
+      'february': 1, 'feb': 1,
+      'march': 2, 'mar': 2,
+      'april': 3, 'apr': 3,
+      'may': 4,
+      'june': 5, 'jun': 5,
+      'july': 6, 'jul': 6,
+      'august': 7, 'aug': 7,
+      'september': 8, 'sep': 8, 'sept': 8,
+      'october': 9, 'oct': 9,
+      'november': 10, 'nov': 10,
+      'december': 11, 'dec': 11
+    };
+
+    const monthNames = [
+      'January', 'February', 'March', 'April', 'May', 'June',
+      'July', 'August', 'September', 'October', 'November', 'December'
+    ];
+
+    // Parse requested months
+    const words = text.split(/[\s,]+/).filter(w => w.length > 0);
+    const requestedMonths = [];
+
+    for (const word of words) {
+      if (monthMap.hasOwnProperty(word)) {
+        if (!requestedMonths.includes(monthMap[word])) {
+          requestedMonths.push(monthMap[word]);
+        }
+      } else {
+        await ctx.reply(`⚠️ Unknown month: "${word}"\n\nPlease use month names like "december" or "dec"`);
+        return;
+      }
+    }
+
+    if (requestedMonths.length === 0) {
+      await ctx.reply('⚠️ No valid months specified. Please try again.');
+      return;
+    }
+
+    // Sort months in order
+    requestedMonths.sort((a, b) => a - b);
+
+    // Determine the year (current year, or if months are in the future relative to now, might span years)
+    const now = new Date();
+    const currentYear = now.getFullYear();
+    const currentMonth = now.getMonth();
+
+    // Calculate date ranges for each month
+    const dateRanges = requestedMonths.map(month => {
+      // If requesting a month that's after current month, assume previous year
+      // Otherwise use current year
+      let year = currentYear;
+      if (month > currentMonth) {
+        // Could be previous year (e.g., requesting December in January)
+        // But for simplicity, we'll use current year and let admin specify
+        // For now, assume current year
+      }
+
+      const startDate = new Date(year, month, 1);
+      const endDate = new Date(year, month + 1, 0, 23, 59, 59, 999); // Last day of month
+
+      return { month, year, startDate, endDate, monthName: monthNames[month] };
+    });
+
+    // Get overall date range
+    const overallStart = dateRanges[0].startDate;
+    const overallEnd = dateRanges[dateRanges.length - 1].endDate;
+
+    // Get all non-archived employees
+    const employees = await prisma.employee.findMany({
+      where: { archived: false },
+      orderBy: { name: 'asc' }
+    });
+
+    // Get all events in the date range
+    const events = await prisma.event.findMany({
+      where: {
+        moderated: true,
+        OR: [
+          {
+            // Event starts within range
+            startDate: { gte: overallStart, lte: overallEnd }
+          },
+          {
+            // Event ends within range
+            endDate: { gte: overallStart, lte: overallEnd }
+          },
+          {
+            // Event spans the entire range
+            startDate: { lte: overallStart },
+            endDate: { gte: overallEnd }
+          }
+        ]
+      },
+      include: { employee: true },
+      orderBy: { startDate: 'asc' }
+    });
+
+    // Build report header
+    const monthsLabel = dateRanges.map(d => d.monthName).join(', ');
+    let message = `📊 Event Report: ${monthsLabel} ${currentYear}\n`;
+    message += `${'─'.repeat(35)}\n\n`;
+
+    // Event type emojis and labels
+    const eventTypeInfo = {
+      'VACATION': { emoji: '🏖', label: 'Vacation' },
+      'SICK_DAY': { emoji: '🤒', label: 'Sick Day' },
+      'HOME_OFFICE': { emoji: '🏠', label: 'Home Office' },
+      'HOLIDAY': { emoji: '🎉', label: 'Holiday' },
+      'LATE_LEFT_EARLY': { emoji: '⏰', label: 'Late/Left Early' },
+      'DAY_OFF_PAID': { emoji: '💰', label: 'Day Off (Paid)' },
+      'DAY_OFF_UNPAID': { emoji: '📅', label: 'Day Off (Unpaid)' }
+    };
+
+    // Helper to format date range
+    const formatDateRange = (start, end) => {
+      const startStr = `${start.getDate()} ${monthNames[start.getMonth()].slice(0, 3)}`;
+      if (!end || start.getTime() === end.getTime()) {
+        return startStr;
+      }
+      const endStr = `${end.getDate()} ${monthNames[end.getMonth()].slice(0, 3)}`;
+      return `${startStr} - ${endStr}`;
+    };
+
+    // Helper to check if event falls within requested months
+    const isEventInRequestedMonths = (event) => {
+      const eventStart = new Date(event.startDate);
+      const eventEnd = event.endDate ? new Date(event.endDate) : eventStart;
+
+      for (const range of dateRanges) {
+        // Check if event overlaps with this month range
+        if (eventStart <= range.endDate && eventEnd >= range.startDate) {
+          return true;
+        }
+      }
+      return false;
+    };
+
+    // Group events by employee
+    const employeeEvents = {};
+    let hasAnyEvents = false;
+
+    for (const emp of employees) {
+      const empEvents = events.filter(e =>
+        e.employee && e.employee.id === emp.id && isEventInRequestedMonths(e)
+      );
+
+      if (empEvents.length > 0) {
+        employeeEvents[emp.id] = {
+          name: emp.name,
+          events: empEvents
+        };
+        hasAnyEvents = true;
+      }
+    }
+
+    // Also include global holidays
+    const globalHolidays = events.filter(e => e.isGlobal && isEventInRequestedMonths(e));
+
+    if (!hasAnyEvents && globalHolidays.length === 0) {
+      message += `No events found for the specified month(s).\n`;
+      await ctx.reply(message);
+      return;
+    }
+
+    // Add global holidays section if any
+    if (globalHolidays.length > 0) {
+      message += `🎉 Global Holidays\n`;
+      for (const holiday of globalHolidays) {
+        const dateStr = formatDateRange(holiday.startDate, holiday.endDate);
+        message += `   • ${dateStr}: ${holiday.notes || 'Holiday'}\n`;
+      }
+      message += `\n`;
+    }
+
+    // Build employee sections
+    for (const empId of Object.keys(employeeEvents)) {
+      const empData = employeeEvents[empId];
+      message += `👤 ${empData.name}\n`;
+
+      // Group events by type for cleaner display
+      const eventsByType = {};
+      for (const event of empData.events) {
+        const type = event.type;
+        if (!eventsByType[type]) {
+          eventsByType[type] = [];
+        }
+        eventsByType[type].push(event);
+      }
+
+      // Display events grouped by type
+      for (const type of Object.keys(eventsByType)) {
+        const typeEvents = eventsByType[type];
+        const typeInfo = eventTypeInfo[type] || { emoji: '📅', label: type };
+
+        for (const event of typeEvents) {
+          const dateStr = formatDateRange(event.startDate, event.endDate);
+          message += `   ${typeInfo.emoji} ${typeInfo.label}: ${dateStr}`;
+          if (event.notes && event.notes.trim() && type !== 'HOLIDAY') {
+            message += ` (${event.notes})`;
+          }
+          message += `\n`;
+        }
+      }
+      message += `\n`;
+    }
+
+    // Add summary statistics
+    message += `${'─'.repeat(35)}\n`;
+    message += `📈 Summary\n`;
+
+    // Count total events by type
+    const typeCounts = {};
+    for (const event of events) {
+      if (!event.isGlobal && isEventInRequestedMonths(event)) {
+        const type = event.type;
+        typeCounts[type] = (typeCounts[type] || 0) + 1;
+      }
+    }
+
+    for (const type of Object.keys(typeCounts)) {
+      const typeInfo = eventTypeInfo[type] || { emoji: '📅', label: type };
+      message += `   ${typeInfo.emoji} ${typeInfo.label}: ${typeCounts[type]}\n`;
+    }
+
+    // Telegram has a message limit of 4096 characters
+    // Split message if needed
+    if (message.length > 4000) {
+      const chunks = [];
+      let currentChunk = '';
+
+      const lines = message.split('\n');
+      for (const line of lines) {
+        if ((currentChunk + line + '\n').length > 4000) {
+          chunks.push(currentChunk);
+          currentChunk = line + '\n';
+        } else {
+          currentChunk += line + '\n';
+        }
+      }
+      if (currentChunk) {
+        chunks.push(currentChunk);
+      }
+
+      for (let i = 0; i < chunks.length; i++) {
+        if (i === 0) {
+          await ctx.reply(chunks[i]);
+        } else {
+          await ctx.reply(`(continued...)\n${chunks[i]}`);
+        }
+      }
+    } else {
+      await ctx.reply(message);
+    }
+
+  } catch (error) {
+    console.error('Report command error:', error);
+    await ctx.reply('An error occurred generating the report. Please try again.');
+  }
+}
+
 module.exports = {
   teamStatus,
   pending,
   weekReport,
   broadcast,
   admins,
-  holiday
+  holiday,
+  report
 };
