@@ -612,28 +612,22 @@ async function report(ctx) {
 
     // Build report header
     const monthsLabel = dateRanges.map(d => d.monthName).join(', ');
-    let message = `📊 Event Report: ${monthsLabel} ${currentYear}\n`;
-    message += `${'─'.repeat(35)}\n\n`;
+    let message = `📊 ${monthsLabel} ${currentYear}\n\n`;
 
-    // Event type emojis and labels
-    const eventTypeInfo = {
-      'VACATION': { emoji: '🏖', label: 'Vacation' },
-      'SICK_DAY': { emoji: '🤒', label: 'Sick Day' },
-      'HOME_OFFICE': { emoji: '🏠', label: 'Home Office' },
-      'HOLIDAY': { emoji: '🎉', label: 'Holiday' },
-      'LATE_LEFT_EARLY': { emoji: '⏰', label: 'Late/Left Early' },
-      'DAY_OFF_PAID': { emoji: '💰', label: 'Day Off (Paid)' },
-      'DAY_OFF_UNPAID': { emoji: '📅', label: 'Day Off (Unpaid)' }
+    // Event type emojis
+    const eventEmoji = {
+      'VACATION': '🏖',
+      'SICK_DAY': '🤒',
+      'HOME_OFFICE': '🏠',
+      'HOLIDAY': '🎉',
+      'LATE_LEFT_EARLY': '⏰',
+      'DAY_OFF_PAID': '💰',
+      'DAY_OFF_UNPAID': '📅'
     };
 
-    // Helper to format date range
-    const formatDateRange = (start, end) => {
-      const startStr = `${start.getDate()} ${monthNames[start.getMonth()].slice(0, 3)}`;
-      if (!end || start.getTime() === end.getTime()) {
-        return startStr;
-      }
-      const endStr = `${end.getDate()} ${monthNames[end.getMonth()].slice(0, 3)}`;
-      return `${startStr} - ${endStr}`;
+    // Helper to format a single date compactly
+    const formatDateShort = (date) => {
+      return `${date.getDate()} ${monthNames[date.getMonth()].slice(0, 3)}`;
     };
 
     // Helper to check if event falls within requested months
@@ -642,12 +636,61 @@ async function report(ctx) {
       const eventEnd = event.endDate ? new Date(event.endDate) : eventStart;
 
       for (const range of dateRanges) {
-        // Check if event overlaps with this month range
         if (eventStart <= range.endDate && eventEnd >= range.startDate) {
           return true;
         }
       }
       return false;
+    };
+
+    // Helper to merge consecutive single-day events into ranges
+    const mergeConsecutiveEvents = (eventsList) => {
+      if (eventsList.length === 0) return [];
+
+      // Sort by start date
+      const sorted = [...eventsList].sort((a, b) =>
+        new Date(a.startDate) - new Date(b.startDate)
+      );
+
+      const merged = [];
+      let currentRange = {
+        start: new Date(sorted[0].startDate),
+        end: sorted[0].endDate ? new Date(sorted[0].endDate) : new Date(sorted[0].startDate)
+      };
+
+      for (let i = 1; i < sorted.length; i++) {
+        const eventStart = new Date(sorted[i].startDate);
+        const eventEnd = sorted[i].endDate ? new Date(sorted[i].endDate) : eventStart;
+
+        // Check if this event is consecutive (within 1 day of current range end)
+        const dayAfterCurrentEnd = new Date(currentRange.end);
+        dayAfterCurrentEnd.setDate(dayAfterCurrentEnd.getDate() + 1);
+
+        if (eventStart <= dayAfterCurrentEnd) {
+          // Extend the current range
+          if (eventEnd > currentRange.end) {
+            currentRange.end = eventEnd;
+          }
+        } else {
+          // Save current range and start a new one
+          merged.push(currentRange);
+          currentRange = { start: eventStart, end: eventEnd };
+        }
+      }
+      merged.push(currentRange);
+
+      return merged;
+    };
+
+    // Helper to format merged ranges compactly
+    const formatMergedRanges = (ranges) => {
+      return ranges.map(r => {
+        if (r.start.getTime() === r.end.getTime()) {
+          return formatDateShort(r.start);
+        } else {
+          return `${formatDateShort(r.start)}-${formatDateShort(r.end)}`;
+        }
+      }).join(', ');
     };
 
     // Group events by employee
@@ -672,27 +715,22 @@ async function report(ctx) {
     const globalHolidays = events.filter(e => e.isGlobal && isEventInRequestedMonths(e));
 
     if (!hasAnyEvents && globalHolidays.length === 0) {
-      message += `No events found for the specified month(s).\n`;
+      message += `No events found.\n`;
       await ctx.reply(message);
       return;
     }
 
     // Add global holidays section if any
     if (globalHolidays.length > 0) {
-      message += `🎉 Global Holidays\n`;
-      for (const holiday of globalHolidays) {
-        const dateStr = formatDateRange(holiday.startDate, holiday.endDate);
-        message += `   • ${dateStr}: ${holiday.notes || 'Holiday'}\n`;
-      }
-      message += `\n`;
+      const holidayRanges = mergeConsecutiveEvents(globalHolidays);
+      message += `🎉 Holidays: ${formatMergedRanges(holidayRanges)}\n\n`;
     }
 
-    // Build employee sections
+    // Build employee sections - compact format
     for (const empId of Object.keys(employeeEvents)) {
       const empData = employeeEvents[empId];
-      message += `👤 ${empData.name}\n`;
 
-      // Group events by type for cleaner display
+      // Group events by type
       const eventsByType = {};
       for (const event of empData.events) {
         const type = event.type;
@@ -702,40 +740,40 @@ async function report(ctx) {
         eventsByType[type].push(event);
       }
 
-      // Display events grouped by type
+      // Build compact line for each employee
+      const eventParts = [];
       for (const type of Object.keys(eventsByType)) {
         const typeEvents = eventsByType[type];
-        const typeInfo = eventTypeInfo[type] || { emoji: '📅', label: type };
-
-        for (const event of typeEvents) {
-          const dateStr = formatDateRange(event.startDate, event.endDate);
-          message += `   ${typeInfo.emoji} ${typeInfo.label}: ${dateStr}`;
-          if (event.notes && event.notes.trim() && type !== 'HOLIDAY') {
-            message += ` (${event.notes})`;
-          }
-          message += `\n`;
-        }
+        const emoji = eventEmoji[type] || '📅';
+        const mergedRanges = mergeConsecutiveEvents(typeEvents);
+        eventParts.push(`${emoji} ${formatMergedRanges(mergedRanges)}`);
       }
-      message += `\n`;
+
+      message += `👤 ${empData.name}\n   ${eventParts.join('\n   ')}\n\n`;
     }
 
-    // Add summary statistics
-    message += `${'─'.repeat(35)}\n`;
-    message += `📈 Summary\n`;
+    // Add compact summary
+    message += `───────────\n📈 `;
 
-    // Count total events by type
-    const typeCounts = {};
+    // Count total days by type (not events)
+    const typeDayCounts = {};
     for (const event of events) {
       if (!event.isGlobal && isEventInRequestedMonths(event)) {
         const type = event.type;
-        typeCounts[type] = (typeCounts[type] || 0) + 1;
+        const start = new Date(event.startDate);
+        const end = event.endDate ? new Date(event.endDate) : start;
+        // Count actual days
+        const days = Math.ceil((end - start) / (1000 * 60 * 60 * 24)) + 1;
+        typeDayCounts[type] = (typeDayCounts[type] || 0) + days;
       }
     }
 
-    for (const type of Object.keys(typeCounts)) {
-      const typeInfo = eventTypeInfo[type] || { emoji: '📅', label: type };
-      message += `   ${typeInfo.emoji} ${typeInfo.label}: ${typeCounts[type]}\n`;
+    const summaryParts = [];
+    for (const type of Object.keys(typeDayCounts)) {
+      const emoji = eventEmoji[type] || '📅';
+      summaryParts.push(`${emoji}${typeDayCounts[type]}`);
     }
+    message += summaryParts.join(' ');
 
     // Telegram has a message limit of 4096 characters
     // Split message if needed
